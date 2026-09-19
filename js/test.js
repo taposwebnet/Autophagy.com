@@ -7956,3 +7956,30 @@ document.addEventListener('click',e=>{
 
 console.log('📞 v4.1 ready — নামে এক ক্লিকে কল (Firebase কলার-রেজিস্ট্রি · কোড মুক্ত!)');
 /* ═══════════ END v4.1 ═══════════ */
+/* ═══ v4.3b — লাইভ ডায়াগনস্টিক + সরাসরি ফিক্স ═══ */
+window.startLive=async function(){
+  try{
+    const title=($('#lvTitle')?($('#lvTitle').value||'').trim():'');
+    if(!me()){ toast('⚠️ আগে লগ ইন করো!','alert'); return openAuth('login'); }
+    if(title.length<3){ toast('শিরোনাম লেখো (৩+ অক্ষর)','alert'); return; }
+    toast('✅ ধাপ ১ ঠিক — এখন ক্যামেরা-অনুমতির জন্য অপেক্ষা…','check');
+    let stream=null;
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }
+    catch(e){ toast('📷 ক্যামেরা/মাইক ব্লকড! ঠিকানার পাশের আইকন → Site settings → Camera+Mic: Allow','alert'); return; }
+    toast('✅ ধাপ ২ ঠিক — ক্যামেরা পাওয়া গেছে!','check');
+    const topic=$('#lvTopic')?$('#lvTopic').value:'story';
+    apLive={id:uid(),host:me().name,by:'me',title,topic,stream,ts:Date.now(),viewers:1,reports:0,chat:[],status:'live',faceCam:!!(stream.getVideoTracks().length)};
+    S.lives.unshift(apLive); save();
+    toast('🔴 আপনি এখন লাইভে!','send');
+    renderLiveRoom();
+    if(apViewTimer){clearInterval(apViewTimer);}
+    apViewTimer=setInterval(()=>{ if(!apLive)return;
+      apLive.viewers=Math.max(1,apLive.viewers+(Math.random()<.5?1:-1));
+      const v=$('#lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers); },6000);
+  }catch(e){
+    toast('⚠️ লাইভে সমস্যা ধরা পড়েছে: '+e.message,'alert');
+    console.error('LIVE DEBUG:',e);
+  }
+};
+console.log('🔧 v4.3b — লাইভ ডায়াগনস্টিক চালু');
+/* ═══ END v4.3b ═══ */
