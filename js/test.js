@@ -7983,3 +7983,22 @@ window.startLive=async function(){
 };
 console.log('🔧 v4.3b — লাইভ ডায়াগনস্টিক চালু');
 /* ═══ END v4.3b ═══ */
+/* ═══ v4.3c — লাইভ শুরু হলেই সেটআপ-মোডাল অটো-বন্ধ (লাইভ অক্ষত!) ═══ */
+function apCloseModalSafe(){
+  try{
+    const m=document.getElementById('modal');
+    if(m) m.classList.remove('open');
+    const c=document.getElementById('mcard');
+    if(c) c.innerHTML='';
+  }catch(e){}
+}
+try{
+  const __prevStart=window.startLive;
+  window.startLive=async function(){
+    await __prevStart();
+    try{ if(apLive&&apLive.status==='live'){ apCloseModalSafe(); } }catch(e){}
+  };
+}catch(e){}
+console.log('✨ v4.3c — লাইভ শুরু = সেটআপ-বাক্স অটো-বন্ধ (লাইভ আর কাটবে না)');
+/* ═══ END v4.3c ═══ */
+
