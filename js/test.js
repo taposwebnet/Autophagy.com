@@ -8132,5 +8132,78 @@ try{
 
 console.log('🔔 v4.4 ready — লাইভ-নোটিফিকেশন · হোম-ব্যানার · রেইল-বিন্দু (গ্লোবাল!)');
 /* ═══════════ END v4.4 ═══════════ */
+/* ═══ v4.5 — বাসি-লাইভ পরিষ্কার · মাইক-মিটার · হার্টবিট ═══ */
+var apMicTimer=null;
 
+/* ১) বাসি লাইভ পরিষ্কার (৩০ মিনিটের পুরনো 'live' = স্বয়ংক্রিয়-সমাপ্ত) */
+function apCleanStaleLives(){
+  try{
+    const LIMIT=30*60000;
+    let ch=false;
+    (S.lives||[]).forEach(l=>{
+      if(l.status==='live'&&Date.now()-(l.ts||0)>LIMIT){ l.status='ended'; l.reason='স্বয়ংক্রিয়-সমাপ্ত'; ch=true; }
+    });
+    if(ch&&typeof save==='function') save();
+    if(apFBReady&&typeof firebase!=='undefined'){
+      FBDB.collection('alivenow').get().then(s=>{
+        s.docs.forEach(d=>{ const L=d.data()||{};
+          if(Date.now()-(L.ts||0)>LIMIT) d.ref.delete().catch(()=>{});
+        });
+      }).catch(()=>{});
+    }
+  }catch(e){}
+}
+apCleanStaleLives();
+setInterval(apCleanStaleLives,120000);
+
+/* ২) হার্টবিট: লাইভ চলাকালীন Firebase-এ তাজা রাখে (ট্যাব-বন্ধ হলেও ৩০ মিনিটে পরিষ্কার) */
+setInterval(()=>{ try{
+  if(apLive&&apLive.status==='live'&&apFBReady&&typeof firebase!=='undefined'){
+    FBDB.collection('alivenow').doc(apLive.id).update({ts:Date.now(),views:apLive.viewers||1}).catch(()=>{});
+  }
+}catch(e){} },60000);
+
+/* ৩) 🎤 মাইক-মিটার: কথা বললে বারগুলো নড়বে — প্রমাণ শব্দ ধরা পড়ছে! */
+try{
+  const o=renderLiveRoom; renderLiveRoom=function(){ o();
+    try{
+      if(!apLive||!apLive.stream) return;
+      if(!apLive.stream.getAudioTracks().length) return;
+      const player=document.querySelector('.live-player'); if(!player) return;
+      if(player.querySelector('#apMicMeter')) return;
+      const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+      const ac=new AC();
+      const src=ac.createMediaStreamSource(apLive.stream);
+      const an=ac.createAnalyser(); an.fftSize=256;
+      src.connect(an);
+      const box=document.createElement('div'); box.id='apMicMeter';
+      box.title='মাইক সচল — কথা বললে বার নড়বে (নিজের কণ্ঠ ইচ্ছাকৃতভাবে নীরব, ইকো এড়াতে!)';
+      box.style.cssText='position:absolute;top:12px;inset-inline-start:12px;z-index:4;display:flex;gap:3px;align-items:flex-end;height:28px;background:rgba(0,0,0,.5);padding:5px 9px;border-radius:99px';
+      box.innerHTML='<span style="font-size:11px;margin-inline-end:2px">🎤</span>';
+      for(let i=0;i<5;i++){ const b=document.createElement('span');
+        b.style.cssText='width:4px;background:#0B6E4F;border-radius:2px;height:4px;transition:height .1s';
+        box.appendChild(b); }
+      player.appendChild(box);
+      const bars=[...box.querySelectorAll('span')].slice(1);
+      const data=new Uint8Array(an.frequencyBinCount);
+      if(apMicTimer) clearInterval(apMicTimer);
+      apMicTimer=setInterval(()=>{
+        try{
+          if(!apLive||!apLive.status||apLive.status!=='live'){ clearInterval(apMicTimer); try{ac.close();}catch(e){} return; }
+          an.getByteFrequencyData(data);
+          let sum=0; for(let i=0;i<data.length;i++) sum+=data[i];
+          const avg=sum/data.length;
+          bars.forEach((b,i)=>{ b.style.height=Math.max(3,Math.min(20,(avg/255)*22*(1-i*0.12)))+'px';
+            b.style.background=avg>22?'#FFD60A':'#0B6E4F'; });
+        }catch(e){}
+      },120);
+    }catch(e){}
+  };
+}catch(e){}
+
+/* ৪) ট্যাব বন্ধ করলেও লাইভ-রেকর্ড ঠিকমতো শেষ হোক */
+window.addEventListener('pagehide',()=>{ try{ if(apLive) endLive(true); }catch(e){} });
+
+console.log('🧹 v4.5 ready — বাসি-লাইভ পরিষ্কার · 🎤 মাইক-মিটার · হার্টবিট');
+/* ═══════════ END v4.5 ═══════════ */
 
