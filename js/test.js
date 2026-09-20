@@ -8001,4 +8001,136 @@ try{
 }catch(e){}
 console.log('✨ v4.3c — লাইভ শুরু = সেটআপ-বাক্স অটো-বন্ধ (লাইভ আর কাটবে না)');
 /* ═══ END v4.3c ═══ */
+/* ═══════════ v4.4 — 🔔 লাইভ-নোটিফিকেশন · হোম-ব্যানার · রেইল-বিন্দু (গ্লোবাল) ═══════════ */
+
+/* ---- নতুন লাইভের খবর ছড়ানো (Firebase-যোগে সবার কাছে) ---- */
+function apAnnounceLive(L){
+  try{
+    /* ১) আমার বেলেও রেকর্ড (ইতিহাস) */
+    addNotif('🔴 '+L.host+' এখন লাইভে — '+L.title,'globe');
+    /* ২) Firebase-এ "লাইভ-প্রচার" জমা — সবার কাছে পৌঁছাবে */
+    if(apFBReady&&typeof firebase!=='undefined'){
+      FBDB.collection('alivenow').doc(L.id).set({
+        host:L.host,title:L.title,topic:L.topic||'',ts:L.ts,views:L.viewers||1
+      }).catch(()=>{});
+    }
+    /* ৩) এই ডিভাইসে তাৎক্ষণিক ব্যানার + রেইল-বিন্দু */
+    apLiveBannerShow(L); apRailDotShow();
+  }catch(e){}
+}
+function apAnnounceLiveEnd(L){
+  try{
+    if(apFBReady&&typeof firebase!=='undefined'){
+      FBDB.collection('alivenow').doc(L.id).delete().catch(()=>{});
+    }
+    apLiveBannerHide();
+  }catch(e){}
+}
+
+/* ---- হোম-ফিডের উপরে লাল ব্যানার ---- */
+let apLiveBanners=apLiveBanners||[];
+function apLiveBannerShow(L){
+  try{
+    if(document.getElementById('apLb-'+L.id)) return;
+    const b=document.createElement('button');
+    b.id='apLb-'+L.id; b.dataset.act='openLiveHome';
+    b.style.cssText='width:100%;background:linear-gradient(120deg,#C0195B,#FF3B30);color:#fff;border:none;border-radius:12px;padding:12px 16px;font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:10px;margin:0 0 14px;box-shadow:0 10px 30px -12px rgba(192,25,91,.6);min-height:48px;cursor:pointer';
+    b.innerHTML='<span style="font-size:20px">🔴</span><span style="flex:1;text-align:start">'+esc(L.host)+' এখন লাইভে!<span style="display:block;font-weight:400;font-size:12.5px;opacity:.9">'+esc(L.title)+'</span></span><span class="live-dot" style="background:#fff"></span><span style="font-family:var(--mono);font-size:11px">দেখো →</span>';
+    b.onclick=()=>{ try{renderLiveHome();}catch(e){} };
+    document.body.appendChild(b);
+    b.style.position='fixed'; b.style.top='70px'; b.style.left='50%'; b.style.transform='translateX(-50%)';
+    b.style.width='min(560px,92vw)'; b.style.zIndex='85';
+    apLiveBanners.push(b);
+  }catch(e){}
+}
+function apLiveBannerHide(){
+  try{ apLiveBanners.forEach(b=>b.remove()); apLiveBanners=[]; }catch(e){}
+}
+
+/* ---- রেইলে লাল বিন্দু ---- */
+function apRailDotShow(){
+  try{
+    const b=document.querySelector('[data-act="openLiveHome"]'); if(!b) return;
+    if(b.querySelector('.apLd')) return;
+    const d=document.createElement('span'); d.className='apLd';
+    d.style.cssText='position:absolute;top:6px;inset-inline-end:10px;width:9px;height:9px;border-radius:50%;background:#FF3B30;border:1.5px solid #fff;animation:apLivePulse 1.2s infinite';
+    b.style.position='relative'; b.appendChild(d);
+  }catch(e){}
+}
+
+/* ---- অন্যদের লাইভ-ঘোষণা শোনা (গ্লোবাল) ---- */
+function apListenLives(){
+  if(!apFBReady||apLiveListenOn) return; apLiveListenOn=true;
+  try{
+    FBDB.collection('alivenow').orderBy('ts','desc').limit(5).onSnapshot(s=>{
+      try{
+        const myHost=apLive?apLive.id:null;
+        s.docs.forEach(d=>{
+          const L=d.data();
+          const seenKey='apSeenLive_'+d.id;
+          if(!sessionStorage.getItem(seenKey)&&d.id!==myHost){
+            sessionStorage.setItem(seenKey,'1');
+            addNotif('🔴 '+L.host+' এখন লাইভে — '+L.title,'globe');
+            apLiveBannerShow(Object.assign({id:d.id},L));
+            apRailDotShow();
+            renderBellPanel&&renderBellPanel();
+          }
+        });
+        apLiveBannerHide();
+        s.docs.forEach(d=>{
+          const L=Object.assign({id:d.id},d.data());
+          apLiveBannerShow(L);
+        });
+        /* যেগুলো আর প্রচারে নেই, সেগুলোর ব্যানার সরাও */
+        document.querySelectorAll('[id^="apLb-"]').forEach(b=>{
+          const id=b.id.replace('apLb-','');
+          if(!s.docs.some(d=>d.id===id)) b.remove();
+        });
+      }catch(e){}
+    },err=>console.warn('alivenow',err));
+  }catch(e){}
+}
+var apLiveListenOn=false;
+try{ const o=apFBOn; apFBOn=function(){ o(); try{ apListenLives(); }catch(e){} }; }catch(e){}
+
+/* ---- লাইভ শুরু/শেষে ঘোষণা জোড়া ---- */
+try{
+  const o=window.startLive;
+  window.startLive=async function(){
+    await o();
+    try{ if(apLive&&apLive.status==='live'){ apAnnounceLive(apLive); apCloseModalSafe&&apCloseModalSafe(); } }catch(e){}
+  };
+}catch(e){}
+try{
+  const o=endLive;
+  endLive=function(){ const L=apLive?Object.assign({},apLive):null;
+    const r=o.apply(this,arguments);
+    try{ if(L) apAnnounceLiveEnd(L); }catch(e){}
+    return r;
+  };
+}catch(e){}
+try{
+  const o=liveTerminate;
+  liveTerminate=function(){ const L=apLive?Object.assign({},apLive):null;
+    const r=o.apply(this,arguments);
+    try{ if(L) apAnnounceLiveEnd(L); }catch(e){}
+    return r;
+  };
+}catch(e){}
+
+/* ---- রিল-বাদী টেনে তোলা: ফিডে গেলেই বর্তমান লাইভ-ব্যানার আঁকো ---- */
+try{
+  const o=renderFeed; renderFeed=function(){ o();
+    try{ if(!apFBReady) return;
+      FBDB.collection('alivenow').orderBy('ts','desc').limit(3).get().then(s=>{
+        apLiveBannerHide();
+        s.docs.forEach(d=>{ apLiveBannerShow(Object.assign({id:d.id},d.data())); });
+      }).catch(()=>{});
+    }catch(e){}
+  };
+}catch(e){}
+
+console.log('🔔 v4.4 ready — লাইভ-নোটিফিকেশন · হোম-ব্যানার · রেইল-বিন্দু (গ্লোবাল!)');
+/* ═══════════ END v4.4 ═══════════ */
+
 
