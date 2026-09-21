@@ -8385,3 +8385,35 @@ apRepairReplays();
 
 console.log('📼 v4.8 ready — রিপ্লে স্থায়ী (IndexedDB) + ☁️ ক্লাউড-আপলোড-প্রস্তুত');
 /* ═══════════ END v4.8 ═══════════ */
+/* ═══ v4.9 — ☁️ Storage SDK অটো-লোড + রিপ্লে-ব্যাকফিল (সবার কাছে!) ═══ */
+function apEnsureStorageSDK(){ return new Promise(res=>{
+  try{ if(firebase.storage) return res(true);
+    const s=document.createElement('script');
+    s.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js';
+    s.onload=()=>res(!!firebase.storage); s.onerror=()=>res(false);
+    document.head.appendChild(s);
+  }catch(e){ res(false); } }); }
+async function apCloudBackfill(){
+  try{
+    if(!apFBReady||!me()) return;
+    const ok=await apEnsureStorageSDK(); if(!ok) return;
+    let n=0;
+    for(const p of S.posts||[]){
+      if(p.author!=='me'||n>=3) continue;
+      for(const m of p.media||[]){
+        if(m.idb&&!m.cloud&&n<3){
+          const b=await apIdbGet(m.idb); if(!b||b.size>60*1024*1024) continue;
+          try{ const snap=await firebase.storage().ref('lives/'+m.idb+'.webm').put(b);
+            m.cloud=await snap.ref.getDownloadURL(); m.url=m.cloud; n++;
+          }catch(e){ console.warn('backfill',e); }
+        }
+      }
+    }
+    if(n){ save(); toast('☁️ '+n+'টা লাইভ-রিপ্লে ক্লাউডে উঠল — সবাই এখন দেখবে! 🌍','check'); if(view==='feed') renderFeed(); }
+  }catch(e){}
+}
+try{ const o=apFBOn; apFBOn=function(){ o(); setTimeout(()=>{ apCloudBackfill(); },4000); }; }catch(e){}
+setTimeout(()=>{ if(apFBReady) apCloudBackfill(); },6000);
+console.log('☁️ v4.9 ready — Storage চালু হলেই রিপ্লে স্বয়ংক্রিয় ক্লাউডে!');
+/* ═══ END v4.9 ═══ */
+
