@@ -8028,7 +8028,8 @@ function apAnnounceLiveEnd(L){
 }
 
 /* ---- হোম-ফিডের উপরে লাল ব্যানার ---- */
-let apLiveBanners=apLiveBanners||[];
+var apLiveBanners=window.apLiveBanners||[];
+
 function apLiveBannerShow(L){
   try{
     if(document.getElementById('apLb-'+L.id)) return;
