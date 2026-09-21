@@ -8981,3 +8981,271 @@ try{ apWatchReal=async function(liveId,base,n){
 
 console.log('🎧 v5.6 ready — নির্ধারিত-পথ · ডামি-স্ট্রিম · Storage-নীরব');
 /* ═══════════ END v5.6 ═══════════ */
+/* ═══════════ v5.7 — 🎧 লাইভ স্ট্রিম: Firebase-সিগন্যালিং (PeerJS-মুক্ত! · ফ্রি!) ═══════════ */
+try{ const o=apCloudBackfill; apCloudBackfill=async function(){ /* নীরব */ }; }catch(e){}
+
+var apRTCPc=null;
+function apRtcLogSet(sig){ try{ if(apFBReady&&typeof firebase!=='undefined'&&apLive){ FBDB.collection('aliveSignals').doc(apLive.id).set(sig,{merge:true}).catch(()=>{}); } }catch(e){} }
+function apRtcLogGet(liveId){ return new Promise(res=>{ try{
+  if(!apFBReady||typeof firebase==='undefined') return res(null);
+  FBDB.collection('aliveSignals').doc(liveId).get().then(d=>res(d.exists?d.data():null)).catch(()=>res(null));
+}catch(e){ res(null); } }); }
+function apRtcListen(liveId,cb){ try{
+  if(!apFBReady||typeof firebase==='undefined') return;
+  FBDB.collection('aliveSignals').doc(liveId).onSnapshot(s=>{ if(s.exists) cb(s.data()); },()=>{});
+}catch(e){} }
+
+/* ডামি-স্ট্রিম (ফাংশন-ডাকা PeerJS পথ নয় — সরাসরি RTCPeerConnection!) */
+function apDummyStream(){ try{ return new MediaStream(); }catch(e){ return null; } }
+
+/* ---- হোস্ট: সম্প্রচার ---- */
+try{ apBroadStart=async function(stream){
+  try{
+    if(!apLive||!stream) return;
+    if(!window.RTCPeerConnection){ toast('⚠️ এই ব্রাউজারে স্ট্রিম সাপোর্ট নেই','alert'); return; }
+    if(apRTCPc){ try{apRTCPc.close();}catch(e){} }
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+    apRTCPc=pc;
+    stream.getTracks().forEach(t=>{ try{ pc.addTrack(t,stream); }catch(e){} });
+    const cands=[];
+    pc.onicecandidate=e=>{ if(e.candidate){ cands.push(e.candidate.toJSON()); apRtcLogSet({hCands:cands.slice()}); } };
+    apRtcLogSet({hostOn:true,ts:Date.now()});
+    const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+    apRtcLogSet({offer:{type:offer.type,sdp:offer.sdp}});
+    /* দর্শকের answer-এর অপেক্ষা */
+    apRtcListen(apLive.id,async d=>{
+      try{
+        if(d&&d.answer&&!pc.remoteDescription){
+          await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+        }
+        if(d&&d.vCands&&d.vCands.length){ d.vCands.forEach(c=>{ try{ pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} }); }
+      }catch(e){}
+    });
+    pc.onconnectionstatechange=()=>{
+      try{ if(['connected','failed','disconnected'].includes(pc.connectionState)){
+        if(pc.connectionState==='connected'&&apLive){
+          apLive.viewers=(apLive.viewers||0)+1;
+          const v=document.getElementById('lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers);
+          toast('📺 একজন দর্শক সংযুক্ত!','users');
+        }
+      } }catch(e){}
+    };
+    toast('📡 সম্প্রচার-পথ খোলা — দর্শকরা যুক্ত হতে পারবে!','globe');
+  }catch(e){ console.warn('broad-fb',e); }
+}; }catch(e){}
+
+/* ---- দর্শক: দেখা-শোনা ---- */
+try{ apWatchReal=async function(liveId,base,n){
+  n=n||0;
+  try{
+    if(!window.RTCPeerConnection){ toast('⚠️ স্ট্রিম সাপোর্ট নেই','alert'); return; }
+    const sig=await apRtcLogGet(liveId);
+    if(!sig||!sig.offer||!sig.hostOn){
+      if(n<12){ if(n===0) toast('⏳ হোস্টের পথ খুলছে…','phone');
+        setTimeout(()=>apWatchReal(liveId,base,n+1),2500); return; }
+      toast('📵 হোস্ট লাইভ বন্ধ করেছে বা পথ বন্ধ','alert'); return;
+    }
+    if(apRTCPc){ try{apRTCPc.close();}catch(e){} }
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+    apRTCPc=pc;
+    /* রিসিভ-অনলি: ডামি-ট্র্যাক দরকার নেই! */
+    try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){}
+    const vcands=[];
+    pc.onicecandidate=e=>{ if(e.candidate){ vcands.push(e.candidate.toJSON()); apRtcLogSet.call(null); try{
+      if(apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aliveSignals').doc(liveId).set({vCands:vcands.slice()},{merge:true}).catch(()=>{}); }
+    }catch(e){} } };
+    pc.ontrack=e=>{
+      try{
+        const remote=e.streams&&e.streams[0];
+        const v=document.getElementById('lvVid');
+        if(v&&remote){ v.srcObject=remote; v.muted=false; v.volume=1;
+          v.play().then(()=>{ toast('🔴 সংযুক্ত! দেখছো ও শুনছো 🎧','globe');
+            const w=document.querySelector('.lv-rep'); if(w) w.style.display='none';
+          }).catch(()=>{ toast('🔊 শব্দ-চালু করতে ভিডিওতে একবার চাপ দাও','vid'); });
+          v.onclick=()=>{ try{ v.muted=false; v.play(); }catch(e){} };
+        }
+      }catch(e){}
+    };
+    pc.onconnectionstatechange=()=>{ try{
+      if(pc.connectionState==='connected'){ toast('🔴 সরাসরি সংযুক্ত! 🎧','globe'); }
+    }catch(e){} };
+    await pc.setRemoteDescription(new RTCSessionDescription(sig.offer));
+    const answer=await pc.createAnswer(); await pc.setLocalDescription(answer);
+    if(apFBReady&&typeof firebase!=='undefined'){
+      FBDB.collection('aliveSignals').doc(liveId).set({answer:{type:answer.type,sdp:answer.sdp},vCands:vcands.slice()},{merge:true}).catch(()=>{});
+    }
+  }catch(e){ console.warn('watch-fb',e); toast('⚠️ সংযোগ সমস্যা — আবার চাপো','alert'); }
+}; }catch(e){}
+
+/* লাইভ শেষে সিগন্যাল-পরিষ্কার */
+try{ const o=apAnnClear; apAnnClear=function(){ try{
+  if(apLive&&apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aliveSignals').doc(apLive.id).delete().catch(()=>{}); }
+}catch(e){} return o.apply(this,arguments); }; }catch(e){}
+
+console.log('🎧 v5.7 ready — লাইভ স্ট্রিম: Firebase-সিগন্যালিং (PeerJS-মুক্ত · ফ্রি!)');
+/* ═══════════ END v5.7 ═══════════ */
+/* ═══════════ v5.8 — লাইভ-দর্শক চূড়ান্ত: PeerJS-সম্পূর্ণ-বহিষ্কার + মোবাইল-দণ্ড-ফিক্স ═══════════ */
+
+/* ---- পর্দা-১: দণ্ড (ব্যানার) নতুন করে — মোবাইল-ক্লিক-প্রস্তুত! ---- */
+function apAnnBarMake(a){
+  try{
+    apAnnHide();
+    const b=document.createElement('div');
+    b.id='apAnnBar'; b.setAttribute('data-ann','1');
+    b.style.cssText='position:fixed;top:62px;left:0;right:0;z-index:200;background:linear-gradient(120deg,#C0195B,#FF3B30);color:#fff;border-radius:0;padding:12px 14px;font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);min-height:50px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent';
+    b.innerHTML='<span style="font-size:18px">🔴</span>'
+     +'<span style="flex:1">'+esc(a.name||'লাইভ')+' এখন লাইভে!<span style="display:block;font-weight:400;font-size:12.5px;opacity:.93">'+esc(a.title||'')+'</span></span>'
+     +'<span class="live-dot" style="background:#fff;flex:none"></span>'
+     +'<span style="font-family:var(--mono);font-size:11.5px;white-space:nowrap">যুক্ত হোন →</span>';
+    /* ⭐ সরাসরি onclick — ক্লিক-হ্যান্ডলার-নির্ভরতা শূন্য! (মোবাইল-নিশ্চিত!) */
+    b.onclick=function(ev){
+      try{ ev.preventDefault(); ev.stopPropagation();
+        apAnnWatchDirect({pid:a.pid||'',name:a.name||'',title:a.title||''});
+      }catch(e){}
+    };
+    document.body.appendChild(b);
+    document.body.style.paddingTop='50px';
+    apAnnBar=b;
+  }catch(e){}
+}
+try{ apAnnShow=function(a){ try{ apAnnBarMake(a); }catch(e){} }; }catch(e){}
+try{ apLiveBannerShow=function(a){ try{ apAnnBarMake(a); }catch(e){} }; }catch(e){}
+
+/* ---- পর্দা-২: সরাসরি-দর্শক (v5.7-র Firebase-পথ ব্যবহার করে) ---- */
+function apAnnWatchDirect(ann){
+  try{
+    if(!me()) return openAuth('login');
+    if(apLive&&apLive.by==='me'){ try{renderLiveRoom();}catch(e){} return; }
+    apLive={id:ann.pid||('live'+Date.now()),host:ann.name||'লাইভ',title:ann.title||'লাইভ',topic:'story',by:'viewer',stream:null,viewers:1};
+    view='liveRoom';
+    const V=document.getElementById('view');
+    if(!V) return;
+    V.innerHTML='<button class="backb" data-act="backFeed">← '+esc(t('all_f'))+'</button>'
+     +'<div class="live-hero"><div class="live-grid"><div class="live-player">'
+     +'<div class="lv-top"><span class="live-badge"><span class="live-dot"></span>LIVE</span><span class="lv-views" id="lvViews">👁 …</span></div>'
+     +'<video id="lvVid" autoplay playsinline style="background:#000"></video>'
+     +'<div class="lv-cap"><b>'+esc(apLive.title||'')+'</b> · 👤 '+esc(apLive.host||'')+'</div></div>'
+     +'<div class="live-chat"><div class="lc-h">💬 লাইভ চ্যাট</div><div class="lc-log" id="lvChatLog"></div>'
+     +'<div class="lc-form"><input id="lvChatIn" maxlength="140" placeholder="মেসেজ লেখো…"><button class="c-send" data-act="liveChatSend">➤</button></div></div></div>'
+     +'<div class="lv-rep" id="apVSt">📡 সংযোগের চেষ্টা চলছে… (সর্বোচ্চ ৩০ সেকেন্ড)</div></div>';
+    try{renderHeader();}catch(e){}
+    window.scrollTo(0,0);
+    apWatchRealFb(ann.pid);
+  }catch(e){ console.warn('v58-direct',e); toast('⚠️ ঢোকা গেল না — আবার চাপো','alert'); }
+}
+
+/* ---- পর্দা-৩: Firebase-সিগন্যাল দর্শক (নিজস্ব — পুরনো ফাংশন সম্পূর্ণ বাইপাস!) ---- */
+var apFbPc=null, apFbUnsub=null;
+function apWatchRealFb(liveId){
+  try{
+    apFbClean();
+    let tries=0;
+    const tryConn=async()=>{
+      try{
+        if(!apLive||apLive.by!=='viewer') return;
+        const sig=await apRtcLogGet(liveId);
+        if(!sig||!sig.offer||!sig.hostOn){
+          tries++;
+          const st=document.getElementById('apVSt');
+          if(st&&tries<12) st.textContent='📡 হোস্টের পথ খুলছে… ('+tries+'/১২)';
+          if(tries>=12){ toast('📵 হোস্ট লাইভ বন্ধ করেছে বা পথ বন্ধ','alert'); return; }
+          setTimeout(tryConn,2500); return;
+        }
+        if(!window.RTCPeerConnection){ toast('⚠️ স্ট্রিম সাপোর্ট নেই','alert'); return; }
+        if(apFbPc){ try{apFbPc.close();}catch(e){} }
+        const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+        apFbPc=pc;
+        try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){}
+        const vc=[];
+        pc.onicecandidate=e=>{ if(e.candidate){ vc.push(e.candidate.toJSON());
+          try{ if(apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aliveSignals').doc(liveId).set({vCands:vc.slice()},{merge:true}).catch(()=>{}); } }catch(e){} } };
+        pc.ontrack=e=>{
+          try{
+            const remote=e.streams&&e.streams[0];
+            const v=document.getElementById('lvVid');
+            if(v&&remote){ v.srcObject=remote; v.muted=false; v.volume=1;
+              v.play().then(()=>{ toast('🔴 সংযুক্ত! দেখছো ও শুনছো 🎧','globe');
+                const st2=document.getElementById('apVSt'); if(st2) st2.style.display='none';
+              }).catch(()=>{ toast('🔊 শব্দ-চালু করতে ভিডিওতে একবার চাপ দাও','vid'); });
+              v.onclick=()=>{ try{ v.muted=false; v.play(); }catch(e){} };
+            }
+          }catch(e){}
+        };
+        pc.onconnectionstatechange=()=>{ try{
+          if(pc.connectionState==='connected'){ toast('🔴 সরাসরি সংযুক্ত! 🎧','globe'); }
+          if(['failed','disconnected'].includes(pc.connectionState)){ const st3=document.getElementById('apVSt'); if(st3) st3.textContent='⚠️ সংযোগ বিচ্ছিন্ন — বেরিয়ে আবার ঢুকো'; }
+        }catch(e){} };
+        await pc.setRemoteDescription(new RTCSessionDescription(sig.offer));
+        const ans=await pc.createAnswer(); await pc.setLocalDescription(ans);
+        if(apFBReady&&typeof firebase!=='undefined'){
+          FBDB.collection('aliveSignals').doc(liveId).set({answer:{type:ans.type,sdp:ans.sdp},vCands:vc.slice()},{merge:true}).catch(()=>{});
+        }
+      }catch(e){ console.warn('fbwatch',e); }
+    };
+    tryConn();
+  }catch(e){ console.warn('v58-fb',e); }
+}
+function apFbClean(){ try{
+  if(apFbPc){ try{apFbPc.close();}catch(e){} apFbPc=null; }
+  if(apFbUnsub){ try{apFbUnsub();}catch(e){} apFbUnsub=null; }
+}catch(e){} }
+
+/* ---- পর্দা-৪: হোস্ট (v5.7-র Firebase-পথ ধরে রাখা + পথ-নিবন্ধন-নিশ্চিত) ---- */
+try{ apBroadStart=async function(stream){
+  try{
+    if(!apLive||!stream||!window.RTCPeerConnection) return;
+    if(apRTCPc){ try{apRTCPc.close();}catch(e){} }
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});
+    apRTCPc=pc;
+    stream.getTracks().forEach(t=>{ try{ pc.addTrack(t,stream); }catch(e){} });
+    const hc=[];
+    pc.onicecandidate=e=>{ if(e.candidate){ hc.push(e.candidate.toJSON());
+      try{ apRtcLogSet({hCands:hc.slice()}); }catch(e){} } };
+    apRtcLogSet({hostOn:true,ts:Date.now()});
+    const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+    apRtcLogSet({offer:{type:offer.type,sdp:offer.sdp}});
+    apRtcListen(apLive.id,async d=>{
+      try{
+        if(d&&d.answer&&!pc.remoteDescription){ await pc.setRemoteDescription(new RTCSessionDescription(d.answer)); }
+        if(d&&d.vCands&&d.vCands.length){ d.vCands.forEach(c=>{ try{ pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} }); }
+      }catch(e){}
+    });
+    pc.onconnectionstatechange=()=>{ try{
+      if(pc.connectionState==='connected'&&apLive){
+        apLive.viewers=(apLive.viewers||0)+1;
+        const v=document.getElementById('lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers);
+        toast('📺 একজন দর্শক সংযুক্ত!','users');
+      }
+    }catch(e){} };
+    toast('📡 সম্প্রচার-পথ খোলা — দর্শকরা যুক্ত হতে পারবে!','globe');
+  }catch(e){ console.warn('broad58',e); }
+}; }catch(e){}
+
+/* ---- পর্দা-৫: পুরনো ভুল-পথ বন্ধ (PeerJS liveWatch বহিষ্কার!) ---- */
+try{ liveWatch=function(id){
+  try{
+    (async()=>{
+      let info=null;
+      if(apFBReady&&typeof firebase!=='undefined'){
+        try{ const d=await FBDB.collection('alivenow').doc(id).get();
+          if(d.exists) info=Object.assign({id:id},d.data());
+        }catch(e){}
+      }
+      if(!info){ const L=(S.lives||[]).find(x=>x.id===id); if(L) info=Object.assign({id:id},L); }
+      if(!info){ toast('এই লাইভটা আর চালু নেই','alert'); try{renderLiveHome();}catch(e){} return; }
+      if(apLive&&apLive.by==='me'){ toast('এখন তুমি নিজেই লাইভে — আগে এটা শেষ করো','alert'); return; }
+      apLive={id:id,host:info.host||'লাইভ',title:info.title||'লাইভ',by:'viewer',stream:null,viewers:1};
+      view='liveRoom';
+      apAnnWatchDirect.call(null,{pid:id,name:info.host,title:info.title});
+    })();
+  }catch(e){}
+}; }catch(e){}
+
+/* দর্শক-পরিষ্কার */
+try{ const o=endLive; endLive=function(){
+  try{ if(apLive&&apLive.by==='viewer'){ apFbClean(); apLive=null; return; } }catch(e){}
+  return o.apply(this,arguments);
+}; }catch(e){}
+
+console.log('🎧 v5.8 ready — PeerJS-সম্পূর্ণ-বহিষ্কার · মোবাইল-দণ্ড-ক্লিক-নিশ্চিত · Firebase-সিগন্যাল');
+/* ═══════════ END v5.8 ═══════════ */
