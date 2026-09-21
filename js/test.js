@@ -8665,18 +8665,8 @@ setTimeout(()=>{ try{ if(apFBReady) apAnnListen(); }catch(e){} },5000);
 
 console.log('📣 v5.1 ready — হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট · সব পাতায় · গ্লোবাল!)');
 /* ═══════════ END v5.1 ═══════════ */
-/* ═══ v5.2 — মৃত blob-রিপ্লে পরিষ্কার (রিফ্রেশ-প্রুফ নতুনগুলো বাঁচবে!) ═══ */
-(function(){ try{
-  let removed=0;
-  S.posts=(S.posts||[]).filter(p=>{
-    const hasDeadBlob=(p.media||[]).some(m=>m.replay&&m.url&&m.url.indexOf('blob:')===0&&!m.idb&&!m.cloud);
-    if(hasDeadBlob){ removed++; return false; }
-    return true;
-  });
-  if(removed){ save(); console.log('🧹 v5.2 — '+removed+'টা মৃত রিপ্লে-পোস্ট পরিষ্কার'); }
-}catch(e){} })();
-console.log('🧹 v5.2 ready — মৃত blob-রিপ্লে স্ক্যান');
-/* ═══ END v5.2 ═══ */
+/* ═══ v5.2 — কেটে  v5.5  কোড বসানো হয়েছে ) ═══ */
+
 /* ═══ v5.3 — 📣 দণ্ডে ক্লিক = সরাসরি লাইভে ঢোকা (দেখা+শোনা এক ক্লিকে!) ═══ */
 
 /* সরাসরি স্ট্রিম-শুরু (লাইভ-হোম লাফিয়ে!) */
@@ -8849,3 +8839,41 @@ try{
 
 console.log('🎧 v5.4 ready — অটো-রিট্রাই ×৩ · শব্দ-আনলক · প্লে-বাটন');
 /* ═══ END v5.4 ═══ */
+/* ═══ v5.5 — সব মৃত blob-ভিডিও পরিষ্কার (রিপ্লে+সাধারণ পোস্ট — সম্পূর্ণ!) ═══ */
+(function(){ try{
+  let fixedPosts=0, removedPosts=0;
+  (S.posts||[]).forEach(p=>{
+    let changed=false;
+    const keep=(p.media||[]).filter(m=>{
+      const deadBlob=m.url&&m.url.indexOf('blob:')===0;   /* লোড-সময়ের blob = মৃত */
+      if(deadBlob){ changed=true; return false; }
+      return true;
+    });
+    if(changed){
+      p.media=keep;
+      /* পোস্টে ভিডিও-ছবি কিছুই না রইল + লেখাও নেই → পোস্টই মুছো (রিপ্লে-খালি!) */
+      const hasMedia=keep.length>0;
+      const hasText=(p.text||'').trim().length>0;
+      const isReplay=(p.text||'').indexOf('লাইভ-রিপ্লে')>=0;
+      if(!hasMedia&&(!hasText||isReplay)){ p._apDead=true; removedPosts++; }
+      else fixedPosts++;
+    }
+  });
+  S.posts=(S.posts||[]).filter(p=>!p._apDead);
+  if(fixedPosts||removedPosts){
+    save();
+    console.log('🧹 v5.5 — মৃত-ভিডিও পরিষ্কার: '+fixedPosts+' পোস্ট ঠিক, '+removedPosts+' খালি-পোস্ট মুছে');
+  }
+}catch(e){} })();
+/* প্রতি ১৫ সেকেন্ডে একবার নজরদারি (নতুন মৃত-লিংক আসলে সঙ্গে সঙ্গে পরিষ্কার) */
+setInterval(()=>{ try{
+  let n=0;
+  (S.posts||[]).forEach(p=>{
+    const before=(p.media||[]).length;
+    p.media=(p.media||[]).filter(m=>!(m.url&&m.url.indexOf('blob:')===0&&!m.idb&&!m.cloud));
+    n+=before-(p.media||[]).length;
+  });
+  if(n){ save(); if(view==='feed') renderFeed(); }
+}catch(e){} },15000);
+console.log('🧹 v5.5 ready — সব-মৃত-ব্লব স্ক্যানার সচল');
+/* ═══ END v5.5 ═══ */
