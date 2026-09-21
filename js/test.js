@@ -8547,3 +8547,122 @@ setInterval(()=>{ try{
 
 console.log('🎧 v5.0 ready — লাইভ দর্শক-স্ট্রিম (WebRTC · ফ্রি!)');
 /* ═══════════ END v5.0 ═══════════ */
+/* ═══════════ v5.1 — 📣 হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট — সব পাতায় স্থায়ী!) ═══════════ */
+var apAnnBar=null;
+
+function apAnnShow(ann){
+  try{
+    /* আগের বার বদলাও (নতুন ঘোষণা পুরনোটাকে ছাপিয়ে যায়) */
+    apAnnHide();
+    const b=document.createElement('button');
+    b.id='apAnnBar'; b.dataset.act='apAnnGo';
+    b.dataset.kind=ann.kind||'live'; b.dataset.pid=ann.pid||''; b.dataset.ref=ann.ref||'';
+    const isLive=(ann.kind==='live');
+    b.style.cssText='position:fixed;top:62px;left:0;right:0;z-index:64;background:'+(isLive
+      ?'linear-gradient(120deg,#C0195B,#FF3B30)'
+      :'linear-gradient(120deg,#0B6E4F,#0E7490)')
+      +';color:#fff;border:none;border-radius:0;padding:9px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px -8px rgba(11,11,22,.5);min-height:44px;cursor:pointer;text-align:start;width:100%';
+    b.innerHTML=(isLive?'<span style="font-size:17px">🔴</span>'
+      +'<span style="flex:1">'+esc(ann.text||'')+' — এখন লাইভে!<span style="display:block;font-weight:400;font-size:12px;opacity:.92">'+esc(ann.title||'')+'</span></span>'
+      :'<span style="font-size:17px">📝</span><span style="flex:1">'+esc(ann.text||'')+' নতুন পোস্ট দিয়েছে!</span>')
+      +'<span class="live-dot" style="background:#fff"></span><span style="font-family:var(--mono);font-size:11px;white-space:nowrap">'+(isLive?'লাইভে যাও →':'দেখো →')+'</span>'
+      +'<span data-act="apAnnClose" style="position:absolute;top:2px;inset-inline-end:10px;font-size:14px;opacity:.8;padding:6px 8px;min-width:28px;min-height:28px">✕</span>';
+    document.body.appendChild(b);
+    /* পেজ-কনটেন্ট বাধা না খাক — বডির উপরে জায়গা নাও */
+    document.body.style.paddingTop='44px';
+    apAnnBar=b;
+  }catch(e){}
+}
+function apAnnHide(){ try{
+  const b=document.getElementById('apAnnBar'); if(b) b.remove();
+  apAnnBar=null;
+  document.body.style.paddingTop='';
+}catch(e){} }
+
+/* --- Firebase ঘোষণা-ঘর --- */
+function apAnnSet(ann){
+  try{
+    if(!apFBReady||typeof firebase==='undefined') return;
+    FBDB.collection('aannounce').doc('current').set({
+      kind:ann.kind||'live', pid:ann.pid||'', name:ann.name||'', title:ann.title||'',
+      ref:ann.ref||'', text:ann.name||'', ts:ann.ts||Date.now()
+    },{merge:true}).catch(()=>{});
+  }catch(e){}
+}
+function apAnnClear(){ try{
+  if(apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aannounce').doc('current').delete().catch(()=>{}); }
+  apAnnHide();
+}catch(e){} }
+
+/* --- সবার শোনা (সব দেশের সব বন্ধুর হেডারে পৌঁছাবে!) --- */
+function apAnnListen(){
+  if(!apFBReady||window.apAnnOn) return; window.apAnnOn=true;
+  try{
+    FBDB.collection('aannounce').doc('current').onSnapshot(s=>{
+      try{
+        if(!s.exists){ apAnnHide(); return; }
+        const a=s.data(); if(!a||!a.kind) { apAnnHide(); return; }
+        const fresh=Date.now()-(a.ts||0)<(24*3600000);   /* ২৪ ঘণ্টা পুরনো হলে নিজে থেকেই মিলবে */
+        if(!fresh){ apAnnHide(); return; }
+        apAnnShow(a);
+      }catch(e){}
+    },err=>console.warn('ann',err));
+  }catch(e){}
+}
+
+/* --- ক্লিক-পথ: ব্যানারে চাপলে সরাসরি লাইভ/পোস্টে --- */
+document.addEventListener('click',e=>{
+  try{
+    if(e.target.closest('[data-act="apAnnClose"]')){
+      e.stopPropagation(); apAnnHide(); return;   /* শুধু এই ডিভাইসে বন্ধ — অন্যে থাকবে */
+    }
+    const b=e.target.closest('[data-act="apAnnGo"]'); if(!b) return;
+    e.preventDefault();
+    if(b.dataset.kind==='live'){ try{renderLiveHome();}catch(e){} return; }
+    /* পোস্ট-ঘোষণা → ফিডে গিয়ে সেই পোস্টে স্ক্রল */
+    try{
+      go('feed');
+      setTimeout(()=>{
+        const n=document.getElementById('post-'+b.dataset.ref);
+        if(n){ n.scrollIntoView({behavior:'smooth',block:'center'});
+          n.style.boxShadow='0 0 0 3px var(--blue)'; setTimeout(()=>{try{n.style.boxShadow='';}catch(e){}},2500); }
+      },350);
+    }catch(e){}
+  }catch(err){}
+});
+
+/* --- লাইভ শুরু/শেষে ঘোষণা জোড়া (v4.4-এর ব্যানারের সঙ্গী) --- */
+try{ const o=window.startLive; window.startLive=async function(){
+  await o();
+  try{ if(apLive&&apLive.status==='live'){
+    apAnnSet({kind:'live',pid:apLive.id,name:apLive.host,title:apLive.title,ts:apLive.ts});
+  } }catch(e){}
+}; }catch(e){}
+try{ const o=endLive; endLive=function(){
+  try{ if(apLive&&apLive.by!=='viewer') apAnnClear(); }catch(e){}
+  return o.apply(this,arguments);
+}; }catch(e){}
+try{ const o=liveTerminate; liveTerminate=function(){
+  try{ if(apLive&&apLive.by!=='viewer') apAnnClear(); }catch(e){}
+  return o.apply(this,arguments);
+}; }catch(e){}
+
+/* --- নতুন পোস্টেও ঘোষণা (তোমার চাওয়া অনুযায়ী!) --- */
+try{ const o=publish; publish=function(){
+  const before=S.posts.length;
+  o.apply(this,arguments);
+  try{
+    const p=S.posts[0];
+    if(p&&S.posts.length>before&&p.author==='me'&&me()){
+      apAnnSet({kind:'post',pid:me().id||'',name:me().defAnon?'কেউ একজন':me().name,ref:p.id,ts:Date.now()});
+    }
+  }catch(e){}
+}; }catch(e){}
+
+/* --- Firebase-যুক্ত হলেই শোনা শুরু --- */
+try{ const o=apFBOn; apFBOn=function(){ o(); try{ apAnnListen(); }catch(e){} }; }catch(e){}
+setTimeout(()=>{ try{ if(apFBReady) apAnnListen(); }catch(e){} },5000);
+
+console.log('📣 v5.1 ready — হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট · সব পাতায় · গ্লোবাল!)');
+/* ═══════════ END v5.1 ═══════════ */
+
