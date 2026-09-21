@@ -8759,3 +8759,93 @@ try{ const o=renderLiveRoom; renderLiveRoom=function(){ o();
 
 console.log('📣 v5.3 ready — দণ্ডে ক্লিক = সরাসরি লাইভে (দেখা+শোনা এক ক্লিকে!)');
 /* ═══════════ END v5.3 ═══════════ */
+/* ═══ v5.4 — দর্শক-স্ট্রিম শক্তিশালী: অটো-রিট্রাই · সাউন্ড-আনলক · প্লে-বাটন ═══ */
+var apViewRetry=null;
+
+/* উন্নত দর্শক-সংযোগ: ৩ বার চেষ্টা + শব্দ-আনলক */
+function apWatchRealV2(liveId,base,retryN){
+  retryN=retryN||0;
+  return (async()=>{
+    try{
+      if(!window.Peer) await apLoadPeerJS();
+      if(!window.Peer){ toast('⚠️ লাইব্রেরি লোড হয়নি','alert'); return; }
+      let pid=base||null;
+      if(apFBReady&&typeof firebase!=='undefined'){
+        try{ const d=await FBDB.collection('alivenow').doc(liveId).get();
+          if(d.exists&&d.data().pid) pid=d.data().pid;
+        }catch(e){}
+      }
+      if(!pid){
+        if(retryN<3){ toast('⏳ হোস্টের পথ খুলছে… ('+(retryN+1)+'/৩)','phone');
+          setTimeout(()=>apWatchRealV2(liveId,base,retryN+1),3500); return; }
+        toast('📵 হোস্ট পথ পাওয়া যায়নি — পরে আবার চাপো','alert'); return;
+      }
+      if(apViewPeer){ try{apViewPeer.destroy();}catch(e){} }
+      const p=new Peer(null,{debug:0}); apViewPeer=p;
+      p.on('open',()=>{
+        try{
+          const call=p.call(pid,undefined);
+          let got=false;
+          call.on('stream',remote=>{
+            got=true;
+            if(apViewRetry){clearTimeout(apViewRetry); apViewRetry=null;}
+            const v=document.getElementById('lvVid');
+            if(v){
+              v.srcObject=remote;
+              v.muted=false; v.volume=1;
+              /* শব্দ-আনলক: ইউজার-জেসচারে প্লে */
+              const tryPlay=()=>{ v.play().then(()=>{
+                toast('🔴 সংযুক্ত! দেখছো ও শুনছো 🎧','globe');
+                const w=document.querySelector('.lv-rep'); if(w) w.style.display='none';
+              }).catch(()=>{ /* ব্লক হলে প্লে-বাটন দেখাও */ }); };
+              tryPlay();
+              v.onclick=()=>{ v.muted=false; v.play().catch(()=>{}); };
+            }
+          });
+          call.on('close',()=>{ toast(got?'সংযোগ শেষ':'📵 হোস্ট লাইভ বন্ধ করেছে','phone'); });
+          call.on('error',()=>{});
+          /* সময়সীমা: ১০ সেকেন্ডে না পেলে আবার চেষ্টা */
+          setTimeout(()=>{ if(!got&&retryN<3&&apViewPeer===p){
+            toast('⏳ আবার চেষ্টা… ('+(retryN+1)+'/৩)','phone');
+            try{p.destroy();}catch(e){} apWatchRealV2(liveId,base,retryN+1);
+          } },10000);
+        }catch(e){ toast('⚠️ কল শুরু হয়নি','alert'); }
+      });
+      p.on('error',e=>{ const t=String((e&&e.type)||'');
+        if(t==='peer-unavailable'){ if(retryN<3){ toast('⏳ আবার চেষ্টা… ('+(retryN+1)+'/৩)','phone');
+          try{p.destroy();}catch(e2){} apWatchRealV2(liveId,base,retryN+1); }
+          else toast('📵 হোস্ট লাইভ বন্ধ করেছে বা পথ বন্ধ','alert'); }
+      });
+    }catch(e){ console.warn('watch2',e); }
+  })();
+}
+try{ apWatchReal=apWatchRealV2; }catch(e){}
+
+/* কালো-বক্স হলে বড় প্লে-বাটন (শব্দ-আনলকের জন্য এক ক্লিক!) */
+try{ const o=renderLiveRoom; renderLiveRoom=function(){ o();
+  try{
+    if(apLive&&apLive.by==='viewer'){
+      setTimeout(()=>{
+        const v=document.getElementById('lvVid'); const pl=document.querySelector('.live-player');
+        if(v&&pl&&!v.srcObject&&!pl.querySelector('#apPlayBig')){
+          const b=document.createElement('button'); b.id='apPlayBig';
+          b.style.cssText='position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-size:17px;font-weight:700;border:none;z-index:5;cursor:pointer;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center';
+          b.innerHTML='<span style="font-size:44px">▶️</span><span>লাইভ শুরু করতে চাপ দাও</span>';
+          b.onclick=()=>{ b.remove(); if(typeof apAnnWatchDirect==='function'&&window.__apLastAnn){ apAnnWatchDirect(window.__apLastAnn); } };
+          pl.appendChild(b);
+        }
+      },6000);
+    }
+  }catch(e){}
+}; }catch(e){}
+
+/* দণ্ড-ক্লিকে শেষ-ঘোষণা মনে রাখা (প্লে-বাটনে আবার চেষ্টার জন্য) */
+try{
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act="apAnnGo"]');
+    if(b&&b.dataset.kind==='live'){ window.__apLastAnn={pid:b.dataset.pid||'',name:'',title:'',ref:b.dataset.ref||''}; }
+  },true);
+}catch(e){}
+
+console.log('🎧 v5.4 ready — অটো-রিট্রাই ×৩ · শব্দ-আনলক · প্লে-বাটন');
+/* ═══ END v5.4 ═══ */
