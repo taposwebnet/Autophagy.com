@@ -8877,3 +8877,107 @@ setInterval(()=>{ try{
 }catch(e){} },15000);
 console.log('🧹 v5.5 ready — সব-মৃত-ব্লব স্ক্যানার সচল');
 /* ═══ END v5.5 ═══ */
+/* ═══════════ v5.6 — স্ট্রিম-রোগের মূল ফিক্স + Storage-নীরব ═══════════ */
+
+/* ১) Storage-ব্যাকফিল নীরব (storageBucket নেই = স্কিপ — কার্ড সিদ্ধান্ত সম্মান!) */
+try{ apCloudBackfill=async function(){
+  if(typeof FB_CONFIG!=='undefined'&&FB_CONFIG.storageBucket){ console.log('☁️ Storage আছে — পরে চালু করা যাবে'); return; }
+  console.log('☁️ Storage বন্ধ (কার্ড ছাড়া) — ব্যাকফিল স্কিপ ✓');
+}; }catch(e){}
+
+/* ২) ডাবল-রেকর্ডার গার্ড (v4.6+v4.7 দুবার জোড়া ছিল) */
+try{ const o=apRecStart; apRecStart=function(s){
+  try{ if(apRec&&apRec.state==='recording'){ console.log('📼 রেকর্ডার ইতিমধ্যে চলছে — স্কিপ'); return; } }catch(e){}
+  return o(s);
+}; }catch(e){}
+
+/* ৩) হোস্ট: নির্ধারিত-পথ + সাথে-সাথেই Firebase-এ পথ-নিবন্ধন */
+try{ apBroadStart=async function(stream){
+  try{
+    if(!apLive||!stream) return;
+    await apLoadPeerJS();
+    if(!window.Peer){ toast('⚠️ সংযোগ-লাইব্রেরি লোড হয়নি','alert'); return; }
+    if(apBroadPeer){ try{apBroadPeer.destroy();}catch(e){} apBroadPeer=null; }
+    const mk=(suf)=>{
+      const pid='aplv-'+apLive.id+(suf||'');
+      apBroadPeer=new Peer(pid,{debug:0});
+      const p=apBroadPeer;
+      /* ⭐ পথ-নাম এখনই লেখা হবে — open-এর অপেক্ষা নেই! */
+      try{ if(apFBReady&&typeof firebase!=='undefined'&&apLive){
+        FBDB.collection('alivenow').doc(apLive.id).update({pid:pid}).catch(()=>{});
+      } }catch(e){}
+      p.on('open',()=>{ toast('📡 দর্শকরা এখন তোমার লাইভে যুক্ত হতে পারবে!','globe'); });
+      p.on('call',call=>{
+        try{ call.answer(stream); apViewerCalls.push(call);
+          apLive.viewers=(apLive.viewers||0)+1;
+          const v=document.getElementById('lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers);
+          if(apFBReady&&typeof firebase!=='undefined'&&apLive){ FBDB.collection('alivenow').doc(apLive.id).update({views:apLive.viewers}).catch(()=>{}); }
+          call.on('close',()=>{ apViewerCalls=apViewerCalls.filter(c=>c!==call);
+            if(apLive) apLive.viewers=Math.max(0,(apLive.viewers||1)-1); });
+        }catch(e){}
+      });
+      p.on('error',e=>{ const t=String((e&&e.type)||'');
+        if(t==='unavailable-id'&&!suf){ try{p.destroy();}catch(e2){} mk('-r1'); }
+        else console.warn('broadpeer',e);
+      });
+    };
+    mk('');
+  }catch(e){ console.warn('broadstart3',e); }
+}; }catch(e){}
+
+/* ৪) দর্শক: নির্ধারিত-পথ + ডামি-স্ট্রিম (PeerJS-এর আসল দাবি!) + ৩-রিট্রাই */
+try{ apWatchReal=async function(liveId,base,n){
+  n=n||0;
+  try{
+    if(!window.Peer) await apLoadPeerJS();
+    if(!window.Peer){ toast('⚠️ সংযোগ-লাইব্রেরি লোড হয়নি','alert'); return; }
+    let pid=base||null;
+    if(!pid&&apFBReady&&typeof firebase!=='undefined'){
+      try{ const d=await FBDB.collection('alivenow').doc(liveId).get();
+        if(d.exists&&d.data().pid) pid=d.data().pid;
+      }catch(e){}
+    }
+    if(!pid) pid='aplv-'+liveId;   /* ⭐ সরাসরি গণনা — ডক না পেলেও চেষ্টা! */
+    if(apViewPeer){ try{apViewPeer.destroy();}catch(e){} }
+    const p=new Peer(null,{debug:0}); apViewPeer=p;
+    p.on('open',()=>{
+      try{
+        /* ⭐ ডামি-স্ট্রিম — PeerJS-এর বাধ্যতামূলক দাবি! */
+        let dummy=null;
+        try{ dummy=new MediaStream(); }catch(e){}
+        let call=null;
+        try{ call=p.call(pid,dummy); }
+        catch(e2){ try{ call=p.call(pid,new MediaStream()); }catch(e3){ toast('⚠️ কল শুরু হয়নি ('+e3.message+')','alert'); return; } }
+        let got=false;
+        call.on('stream',remote=>{
+          got=true;
+          const v=document.getElementById('lvVid');
+          if(v){ v.srcObject=remote; v.muted=false; v.volume=1;
+            v.play().then(()=>{
+              toast('🔴 সংযুক্ত! দেখছো ও শুনছো 🎧','globe');
+              const w=document.querySelector('.lv-rep'); if(w) w.style.display='none';
+            }).catch(()=>{ toast('🔊 শব্দ-ভিডিও চালু করতে পর্দায় ভিডিওটায় একবার চাপ দাও','vid'); });
+            v.onclick=()=>{ try{ v.muted=false; v.play(); }catch(e){} };
+          }
+        });
+        call.on('close',()=>{ toast(got?'সংযোগ শেষ':'📵 হোস্ট লাইভ বন্ধ করেছে','phone'); });
+        call.on('error',()=>{});
+        setTimeout(()=>{ if(!got&&n<3&&apViewPeer===p){
+          toast('⏳ হোস্টের পথ খুলছে — আবার চেষ্টা ('+(n+1)+'/৩)','phone');
+          try{p.destroy();}catch(e){}
+          apWatchReal(liveId,base,n+1);
+        } },9000);
+      }catch(e){ console.warn('watch3-open',e); }
+    });
+    p.on('error',e=>{ const t=String((e&&e.type)||'');
+      if(t==='peer-unavailable'&&n<3){
+        toast('⏳ হোস্টের পথ খুলছে — আবার চেষ্টা ('+(n+1)+'/৩)','phone');
+        try{p.destroy();}catch(e){}
+        apWatchReal(liveId,base,n+1);
+      } else if(t==='peer-unavailable'){ toast('📵 হোস্ট লাইভ বন্ধ করেছে বা পথ বন্ধ','alert'); }
+    });
+  }catch(e){ console.warn('watch3',e); }
+}; }catch(e){}
+
+console.log('🎧 v5.6 ready — নির্ধারিত-পথ · ডামি-স্ট্রিম · Storage-নীরব');
+/* ═══════════ END v5.6 ═══════════ */
