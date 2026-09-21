@@ -8416,4 +8416,134 @@ try{ const o=apFBOn; apFBOn=function(){ o(); setTimeout(()=>{ apCloudBackfill();
 setTimeout(()=>{ if(apFBReady) apCloudBackfill(); },6000);
 console.log('☁️ v4.9 ready — Storage চালু হলেই রিপ্লে স্বয়ংক্রিয় ক্লাউডে!');
 /* ═══ END v4.9 ═══ */
+/* ═══════════ v5.0 — 🎧 লাইভ দর্শক-স্ট্রিম (WebRTC · সম্পূর্ণ ফ্রি!) ═══════════ */
+var apBroadPeer=null, apViewerCalls=[], apViewPeer=null;
 
+/* --- হোস্ট: সম্প্রচার-পথ খোলা --- */
+async function apBroadStart(stream){
+  try{
+    await apLoadPeerJS();
+    if(!window.Peer||!apLive) return;
+    if(apBroadPeer){ try{apBroadPeer.destroy();}catch(e){} }
+    const pid='aplv-'+apLive.id+'-'+Math.random().toString(36).slice(2,6);
+    const p=new Peer(pid,{debug:0}); apBroadPeer=p;
+    p.on('open',()=>{
+      try{
+        if(apFBReady&&typeof firebase!=='undefined'&&apLive){
+          FBDB.collection('alivenow').doc(apLive.id).update({pid}).catch(()=>{});
+        }
+        toast('📡 দর্শকরা এখন তোমার লাইভে যুক্ত হতে পারবে!','globe');
+      }catch(e){}
+    });
+    p.on('call',call=>{
+      try{
+        call.answer(stream); apViewerCalls.push(call);
+        apLive.viewers=(apLive.viewers||0)+1;
+        const v=document.getElementById('lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers);
+        if(apFBReady&&typeof firebase!=='undefined'&&apLive){
+          FBDB.collection('alivenow').doc(apLive.id).update({views:apLive.viewers}).catch(()=>{});
+        }
+        call.on('close',()=>{ apViewerCalls=apViewerCalls.filter(c=>c!==call);
+          apLive.viewers=Math.max(0,(apLive.viewers||1)-1); });
+      }catch(e){}
+    });
+    p.on('error',e=>console.warn('broadpeer',e));
+  }catch(e){ console.warn('broadstart',e); }
+}
+function apBroadStop(){
+  try{ apViewerCalls.forEach(c=>{try{c.close();}catch(e){}}); apViewerCalls=[]; }catch(e){}
+  try{ if(apBroadPeer){apBroadPeer.destroy(); apBroadPeer=null;} }catch(e){}
+}
+
+/* --- দর্শক: সংযোগ ও দেখা-শোনা --- */
+function apWatchReal(liveId,base){
+  return (async()=>{
+    try{
+      if(!window.Peer) await apLoadPeerJS();
+      if(!window.Peer){ toast('⚠️ সংযোগ-লাইব্রেরি লোড হয়নি','alert'); return; }
+      let pid=base||null;
+      if(apFBReady&&typeof firebase!=='undefined'){
+        try{ const d=await FBDB.collection('alivenow').doc(liveId).get();
+          if(d.exists&&d.data().pid) pid=d.data().pid;
+        }catch(e){}
+      }
+      if(!pid){ toast('📡 স্ট্রিম-পথ এখনো খোলেনি — ৫ সেকেন্ড পরে আবার চাপো','alert'); return; }
+      if(apViewPeer){ try{apViewPeer.destroy();}catch(e){} }
+      const p=new Peer(null,{debug:0}); apViewPeer=p;
+      p.on('open',()=>{
+        try{
+          let dummy=null; try{ dummy=new MediaStream(); }catch(e){}
+          const call=p.call(pid,dummy||undefined);
+          let got=false;
+          call.on('stream',remote=>{
+            got=true;
+            const v=document.getElementById('lvVid');
+            if(v){ v.srcObject=remote; v.muted=false; v.volume=1; if(v.play) v.play().catch(()=>{}); }
+            toast('🔴 সরাসরি সংযুক্ত — দেখছো ও শুনছো! 🎧','globe');
+          });
+          call.on('close',()=>{ toast(got?'সংযোগ শেষ':'📵 হোস্ট লাইভ বন্ধ করেছে','phone'); });
+          call.on('error',()=>{});
+          setTimeout(()=>{ if(!got&&apViewPeer===p) toast('⏳ হোস্ট এখনো সংযোগ নিচ্ছে না — একটু পরে আবার','alert'); },12000);
+        }catch(e){ toast('⚠️ কল শুরু হয়নি','alert'); }
+      });
+      p.on('error',e=>{ const t=String((e&&e.type)||'');
+        if(t==='peer-unavailable') toast('📵 এই লাইভটা সম্প্রতি শেষ হয়ে গেছে','alert');
+        else toast('⚠️ সংযোগ সমস্যা','alert');
+      });
+    }catch(e){ console.warn('watch',e); }
+  })();
+}
+
+/* liveWatch প্রতিস্থাপন — এখন আসল স্ট্রিম! */
+try{ liveWatch=function(id){
+  try{
+    (async()=>{
+      let info=null, base=null;
+      if(apFBReady&&typeof firebase!=='undefined'){
+        try{ const d=await FBDB.collection('alivenow').doc(id).get();
+          if(d.exists){ const dd=d.data(); base=dd.pid||null;
+            info=Object.assign({id:id},dd); }
+        }catch(e){}
+      }
+      if(!info){ const L=(S.lives||[]).find(x=>x.id===id); if(L) info=Object.assign({id:id},L); }
+      if(!info){ toast('এই লাইভটা আর চালু নেই','alert'); try{renderLiveHome();}catch(e){} return; }
+      apLive=Object.assign({},info,{id:id,stream:null,by:'viewer',viewers:(info.views||info.viewers||1)});
+      renderLiveRoom();
+      apWatchReal(id,base);
+    })();
+  }catch(e){}
+}; }catch(e){}
+
+/* হোস্ট-র‍্যাপার */
+try{ const o=window.startLive; window.startLive=async function(){
+  await o();
+  try{ if(apLive&&apLive.status==='live'&&apLive.stream) apBroadStart(apLive.stream); }catch(e){}
+}; }catch(e){}
+try{ const o=endLive; endLive=function(){
+  try{ if(apLive&&apLive.by==='viewer'){
+      if(apViewPeer){try{apViewPeer.destroy();}catch(e){} apViewPeer=null;}
+      apLive=null; return;
+  } }catch(e){}
+  const r=o.apply(this,arguments);
+  try{ apBroadStop(); }catch(e){}
+  return r;
+}; }catch(e){}
+try{ const o=liveTerminate; liveTerminate=function(){
+  try{ if(apLive&&apLive.by==='viewer'){
+      toast('🚩 রিপোর্ট পাঠানো হয়েছে — কর্তৃপক্ষ দেখবে','check');
+      if(apViewPeer){try{apViewPeer.destroy();}catch(e){} apViewPeer=null;}
+      apLive=null; try{renderLiveHome();}catch(e){} return;
+  } }catch(e){}
+  return o.apply(this,arguments);
+}; }catch(e){}
+
+/* দর্শক লাইভ-রুম ছেড়ে গেলে সংযোগ পরিষ্কার */
+setInterval(()=>{ try{
+  if(apLive&&apLive.by==='viewer'&&view!=='liveRoom'){
+    if(apViewPeer){try{apViewPeer.destroy();}catch(e){} apViewPeer=null;}
+    apLive=null;
+  }
+}catch(e){} },1500);
+
+console.log('🎧 v5.0 ready — লাইভ দর্শক-স্ট্রিম (WebRTC · ফ্রি!)');
+/* ═══════════ END v5.0 ═══════════ */
