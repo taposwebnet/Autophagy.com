@@ -8298,3 +8298,90 @@ try{ const o=window.startLive; window.startLive=async function(){
 }; }catch(e){}
 console.log('📼 v4.7 ready — লাইভ-রিপ্লে অটো-পোস্ট (ফিডে দেখা+শোনা+লাইক+কমেন্ট+শেয়ার)');
 /* ═══════════ END v4.7 ═══════════ */
+/* ═══════════ v4.8 — 📼 রিপ্লে স্থায়ী (IndexedDB) + ☁️ Firebase Storage আপলোড ═══════════ */
+var APDB=null;
+function apIdbOpen(){ return new Promise(res=>{ if(APDB) return res(APDB);
+  try{ const rq=indexedDB.open('ap_replays',1);
+    rq.onupgradeneeded=ev=>{ try{ ev.target.result.createObjectStore('vids'); }catch(e){} };
+    rq.onsuccess=ev=>{ APDB=ev.target.result; res(APDB); }; rq.onerror=()=>res(null);
+  }catch(e){ res(null); } }); }
+function apIdbPut(k,blob){ return apIdbOpen().then(db=>new Promise(res=>{ if(!db) return res(false);
+  try{ const tx=db.transaction('vids','readwrite'); tx.objectStore('vids').put(blob,k);
+    tx.oncomplete=()=>res(true); tx.onerror=()=>res(false); }catch(e){ res(false); } })); }
+function apIdbGet(k){ return apIdbOpen().then(db=>new Promise(res=>{ if(!db) return res(null);
+  try{ const rq=db.transaction('vids').objectStore('vids').get(k);
+    rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); }catch(e){ res(null); } })); }
+
+/* রিপ্লে-পোস্ট সংশোধন: blob → IndexedDB-স্থায়ী + ঐচ্ছিক-ক্লাউড আপলোড */
+try{ const o=apLiveReplayPost; apLiveReplayPost=async function(){
+  try{
+    const u=me(); if(!u) return;
+    const L=(typeof apLive!=='undefined'&&apLive)?Object.assign({},apLive):null;
+    const dur=L&&L.ts?Math.floor((Date.now()-L.ts)/1000):0;
+    const txt=(L?('[📼 লাইভ-রিপ্লে] '+L.title):'[📼 লাইভ-রিপ্লে]')+' — সময়: '+Math.floor(dur/60)+'মি '+(dur%60)+'সে';
+    const k='rp'+Date.now().toString(36);
+    const ok=await apIdbPut(k,apRecBlob);
+    const m={type:'video',rid:k,replay:true};
+    if(ok){ m.idb=k; m.url='idb:'+k; }
+    else { m.url=URL.createObjectURL(apRecBlob); }
+    /* ☁️ Firebase Storage আপলোড (চালু থাকলে — সবার ডিভাইসে যাবে!) */
+    if(typeof firebase!=='undefined'&&firebase.storage&&apFBReady){
+      try{
+        const task=firebase.storage().ref('lives/'+k+'.webm').put(apRecBlob);
+        toast('☁️ ভিডিও ক্লাউডে আপলোড হচ্ছে…','send');
+        const snap=await task;
+        m.cloud=await snap.ref.getDownloadURL();
+        m.url=m.cloud;
+        toast('☁️ ক্লাউড-আপলোড সম্পন্ন — সবার ডিভাইসে দেখা যাবে! 🌍','check');
+      }catch(e){ console.warn('storage upload',e); }
+    }
+    const post={ id:uid(), author:'me', anon:!!u.defAnon, emotion:'story', text:txt,
+      media:[m], ts:Date.now(), likes:[], shares:0, comments:[],
+      reads:{total:3,by:{BD:2},byAge:{'18-24':3}} };
+    S.posts.unshift(post);
+    S.replays=(S.replays||[]).filter(r=>r.id!==k);
+    apRecBlob=null; save();
+    toast('📼 লাইভ-রিপ্লে ফিডে প্রকাশিত! লাইক·কমেন্ট·শেয়ার চলবে 🎬','check');
+    addNotif('📼 লাইভ-রিপ্লে পোস্ট হয়েছে — ফিডে দেখো!','vid');
+    try{ go('feed'); }catch(e){ renderView(); }
+  }catch(e){ console.warn('replay',e); }
+}; }catch(e){}
+
+/* পোস্ট-রেন্ডারের সময় idb: ভিডিও ফেরত আনা (রিফ্রেশ-প্রুফ!) */
+try{ const o=postCard; postCard=function(p){
+  let h=o(p);
+  try{
+    (p.media||[]).forEach((m,i)=>{
+      if(m.idb&&m.url&&m.url.indexOf('idb:')===0){
+        setTimeout(async()=>{ try{
+          const el=document.querySelector('#post-'+p.id+' video');
+          if(el&&el.dataset.apFixed!=='1'){ el.dataset.apFixed='1';
+            const b=await apIdbGet(m.idb);
+            if(b) el.src=URL.createObjectURL(b);
+          }
+        }catch(e){} },80);
+      }
+    });
+  }catch(e){}
+  return h;
+}; }catch(e){}
+
+/* বাসি-রেকর্ড-নিখোঁজ মেরামত: কোড নতুন-লোডে হারানো url ঠিক করা */
+async function apRepairReplays(){
+  try{
+    let ch=false;
+    for(const p of S.posts||[]){
+      for(const m of p.media||[]){
+        if(m.idb&&(!m.url||m.url.indexOf('idb:')===0)){
+          const b=await apIdbGet(m.idb);
+          if(b){ m.url=URL.createObjectURL(b); ch=true; }
+        }
+      }
+    }
+    if(ch){ save(); if(view==='feed') renderFeed(); }
+  }catch(e){}
+}
+apRepairReplays();
+
+console.log('📼 v4.8 ready — রিপ্লে স্থায়ী (IndexedDB) + ☁️ ক্লাউড-আপলোড-প্রস্তুত');
+/* ═══════════ END v4.8 ═══════════ */
