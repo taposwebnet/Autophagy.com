@@ -8207,4 +8207,49 @@ window.addEventListener('pagehide',()=>{ try{ if(apLive) endLive(true); }catch(e
 
 console.log('🧹 v4.5 ready — বাসি-লাইভ পরিষ্কার · 🎤 মাইক-মিটার · হার্টবিট');
 /* ═══════════ END v4.5 ═══════════ */
-
+/* ═══════════ v4.6 — 📼 লাইভ রেকর্ডিং + অটো-ডাউনলোড (শব্দসহ!) ═══════════ */
+var apRec=null, apRecChunks=[];
+function apRecStart(stream){
+  try{
+    if(!window.MediaRecorder){ toast('এই ব্রাউজারে রেকর্ডিং সাপোর্ট নেই','alert'); return; }
+    apRecChunks=[];
+    const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')?'video/webm;codecs=vp8,opus':(MediaRecorder.isTypeSupported('video/webm')?'video/webm':'');
+    apRec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:800000,audioBitsPerSecond:64000}:undefined);
+    apRec.ondataavailable=e=>{ if(e.data&&e.data.size) apRecChunks.push(e.data); };
+    apRec.start(2000);
+    toast('📼 রেকর্ডিং চালু — লাইভ শেষে ভিডিও সেভ হবে','vid');
+  }catch(e){ console.warn('rec start',e); }
+}
+function apRecStopAndSave(){
+  try{
+    if(!apRec||apRec.state==='inactive') return;
+    apRec.onstop=()=>{
+      try{
+        const blob=new Blob(apRecChunks,{type:'video/webm'});
+        if(blob.size<2000){ toast('রেকর্ডিং খুব ছোট — সেভ হয়নি','alert'); return; }
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a');
+        const d=new Date(), p=n=>String(n).padStart(2,'0');
+        a.href=url;
+        a.download='autophagy-live-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+'.webm';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),8000);
+        toast('📼 লাইভ-ভিডিও ডাউনলোড হয়েছে! ডাউনলোড ফোল্ডার দেখো — চাইলে এটা পোস্ট আকারে আপলোড দাও, লাইক-কমেন্ট-শেয়ার সব চলবে! 🎬','check');
+        addNotif('📼 লাইভ-রেকর্ডিং সেভ হয়েছে (ডাউনলোড ফোল্ডারে)','vid');
+      }catch(e){ console.warn('rec save',e); }
+    };
+    apRec.stop();
+  }catch(e){}
+}
+/* লাইভ শুরুতে রেকর্ডার জোড়া */
+try{ const o=window.startLive; window.startLive=async function(){
+  await o();
+  try{ if(apLive&&apLive.stream&&apLive.stream.getVideoTracks().length) apRecStart(apLive.stream); }catch(e){}
+}; }catch(e){}
+/* লাইভ শেষ/বাতিলে সেভ */
+try{ const o=endLive; endLive=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
+try{ const o=liveTerminate; liveTerminate=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
+/* ট্যাব হঠাৎ বন্ধেও যতটুকু রেকর্ড হয়েছে বাঁচার চেষ্টা */
+window.addEventListener('beforeunload',()=>{ try{ if(apRec&&apRec.state==='recording') apRecStopAndSave(); }catch(e){} });
+console.log('📼 v4.6 ready — লাইভ রেকর্ডিং + অটো-ডাউনলোড (শব্দসহ)');
+/* ═══════════ END v4.6 ═══════════ */
