@@ -8241,11 +8241,7 @@ function apRecStopAndSave(){
     apRec.stop();
   }catch(e){}
 }
-/* লাইভ শুরুতে রেকর্ডার জোড়া */
-try{ const o=window.startLive; window.startLive=async function(){
-  await o();
-  try{ if(apLive&&apLive.stream&&apLive.stream.getVideoTracks().length) apRecStart(apLive.stream); }catch(e){}
-}; }catch(e){}
+
 /* লাইভ শেষ/বাতিলে সেভ */
 try{ const o=endLive; endLive=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
 try{ const o=liveTerminate; liveTerminate=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
@@ -8253,3 +8249,52 @@ try{ const o=liveTerminate; liveTerminate=function(){ try{ apRecStopAndSave(); }
 window.addEventListener('beforeunload',()=>{ try{ if(apRec&&apRec.state==='recording') apRecStopAndSave(); }catch(e){} });
 console.log('📼 v4.6 ready — লাইভ রেকর্ডিং + অটো-ডাউনলোড (শব্দসহ)');
 /* ═══════════ END v4.6 ═══════════ */
+/* ═══════════ v4.7 — 📼 লাইভ-রিপ্লে: লাইভ শেষ → অটো-পোস্ট (লাইক·কমেন্ট·শেয়ার-সক্ষম) ═══════════ */
+var apRecBlob=null;
+function apRecSaveBlob(){ try{
+  if(!apRec||apRec.state==='inactive') return;
+  apRec.onstop=()=>{
+    try{
+      apRecBlob=new Blob(apRecChunks,{type:'video/webm'});
+      if(apRecBlob.size<2000){ apRecBlob=null; toast('রেকর্ডিং খুব ছোট','alert'); return; }
+      apLiveReplayPost();
+    }catch(e){ console.warn('replay save',e); }
+  };
+  apRec.stop();
+}catch(e){} }
+function apLiveReplayPost(){
+  try{
+    const L=(typeof apLive!=='undefined'&&apLive)?Object.assign({},apLive):null;
+    const S2=(typeof S!=='undefined')?S:null; if(!S2) return;
+    const u=me(); if(!u) return;
+    const dur=L&&L.ts?Math.floor((Date.now()-L.ts)/1000):0;
+    const min=Math.floor(dur/60), sec=dur%60;
+    const txt=(L?('[📼 লাইভ-রিপ্লে] '+L.title):'[📼 লাইভ-রিপ্লে]')+' — সময়: '+min+'মি '+sec+'সে';
+    const id='rply'+Date.now().toString(36);
+    S2.replays=S2.replays||[];
+    S2.replays.push({id,blob:apRecBlob,ts:Date.now()});
+    if(S2.replays.length>8){ const old=S2.replays.shift();
+      try{ if(old&&old.url) URL.revokeObjectURL(old.url); }catch(e){} }
+    if(typeof save==='function') save();
+    const post={
+      id:uid(), author:'me', anon:!!u.defAnon, emotion:'story', text:txt,
+      media:[{type:'video',url:URL.createObjectURL(apRecBlob),replay:true,rid:id}],
+      ts:Date.now(), likes:[], shares:0, comments:[],
+      reads:{total:3,by:{BD:2,US:1},byAge:{'18-24':2,'25-34':1}}
+    };
+    S2.posts.unshift(post);
+    apRecBlob=null;
+    toast('📼 লাইভ-রিপ্লে ফিডে প্রকাশিত! লাইক·কমেন্ট·শেয়ার চলবে (এই ডিভাইসে) 🎬','check');
+    addNotif('📼 লাইভ-রিপ্লে পোস্ট হয়েছে — ফিডে দেখো!','vid');
+    if(typeof save==='function') save();
+    try{ go('feed'); }catch(e){ try{renderView();}catch(e2){} }
+  }catch(e){ console.warn('replay post',e); }
+}
+/* endLive-এর ডাউনলোড-অংশ রিপ্লে-পোস্টে রূপান্তর */
+try{ apRecStopAndSave=apRecSaveBlob; }catch(e){}
+try{ const o=window.startLive; window.startLive=async function(){
+  await o();
+  try{ if(apLive&&apLive.stream&&apLive.stream.getVideoTracks().length) apRecStart(apLive.stream); }catch(e){}
+}; }catch(e){}
+console.log('📼 v4.7 ready — লাইভ-রিপ্লে অটো-পোস্ট (ফিডে দেখা+শোনা+লাইক+কমেন্ট+শেয়ার)');
+/* ═══════════ END v4.7 ═══════════ */
