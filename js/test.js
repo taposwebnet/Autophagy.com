@@ -8665,4 +8665,97 @@ setTimeout(()=>{ try{ if(apFBReady) apAnnListen(); }catch(e){} },5000);
 
 console.log('📣 v5.1 ready — হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট · সব পাতায় · গ্লোবাল!)');
 /* ═══════════ END v5.1 ═══════════ */
+/* ═══ v5.2 — মৃত blob-রিপ্লে পরিষ্কার (রিফ্রেশ-প্রুফ নতুনগুলো বাঁচবে!) ═══ */
+(function(){ try{
+  let removed=0;
+  S.posts=(S.posts||[]).filter(p=>{
+    const hasDeadBlob=(p.media||[]).some(m=>m.replay&&m.url&&m.url.indexOf('blob:')===0&&!m.idb&&!m.cloud);
+    if(hasDeadBlob){ removed++; return false; }
+    return true;
+  });
+  if(removed){ save(); console.log('🧹 v5.2 — '+removed+'টা মৃত রিপ্লে-পোস্ট পরিষ্কার'); }
+}catch(e){} })();
+console.log('🧹 v5.2 ready — মৃত blob-রিপ্লে স্ক্যান');
+/* ═══ END v5.2 ═══ */
+/* ═══ v5.3 — 📣 দণ্ডে ক্লিক = সরাসরি লাইভে ঢোকা (দেখা+শোনা এক ক্লিকে!) ═══ */
 
+/* সরাসরি স্ট্রিম-শুরু (লাইভ-হোম লাফিয়ে!) */
+function apAnnWatchDirect(ann){
+  try{
+    if(!me()) return openAuth('login');
+    /* নিজের লাইভে নিজেই ক্লিক করলে → নিজের লাইভ-রুমে ফেরা */
+    if(apLive&&apLive.id===ann.pid&&apLive.by==='me'){ try{renderLiveRoom();}catch(e){} return; }
+    /* লাইভ-হোম না খুলেই সরাসরি দর্শক-রুম বানাও */
+    apLive=Object.assign({id:ann.pid},{id:ann.pid,host:ann.name||'লাইভ',title:ann.title||'লাইভ',topic:'story',by:'viewer',stream:null,viewers:1});
+    view='liveRoom';
+    $('#view').innerHTML=`<button class="backb" data-act="backFeed">${ic('back','width:15px;height:15px')}${esc(t('all_f'))}</button>
+    <div class="live-hero"><div class="live-grid">
+     <div class="live-player">
+      <span class="lv-top"><span class="live-badge"><span class="live-dot"></span>LIVE</span><span class="stamp">লাইভ</span><span class="lv-views" id="lvViews">👁 …</span></span>
+      <video id="lvVid" autoplay playsinline></video>
+      <div class="lv-cap"><b>${esc(apLive.title)}</b> · 👤 ${esc(apLive.host)}</div>
+     </div>
+     <div class="live-chat">
+      <div class="lc-h">💬 লাইভ চ্যাট</div>
+      <div class="lc-log" id="lvChatLog"></div>
+      <div class="lc-form"><input id="lvChatIn" maxlength="140" placeholder="মেসেজ লেখো…" autocomplete="off"><button class="c-send" data-act="liveChatSend">${ic('send','width:15px;height:15px')}</button></div>
+     </div></div>
+     <div class="lv-rep">📡 সরাসরি সংযোগের চেষ্টা চলছে…</div>
+    </div>`;
+    try{renderHeader();}catch(e){} try{toggleMenu(false);}catch(e){}
+    window.scrollTo({top:0,behavior:'smooth'});
+    /* সংযোগ শুরু */
+    apWatchReal(ann.pid, ann.ref||null);
+  }catch(e){ console.warn('annWatch',e); toast('⚠️ লাইভে ঢোকা গেল না — আবার চাপো','alert'); }
+}
+
+/* পুরনো ক্লিক-হ্যান্ডলার আপগ্রেড: live = সরাসরি স্ট্রিম! */
+try{
+  /* আগের হ্যান্ডলার বাদ দেওয়া সম্ভব না (একসাথে চলে) — তাই ফ্ল্যাগ ব্যবহার */
+  window.apAnnDirect=true;
+}catch(e){}
+
+/* নতুন হ্যান্ডলার — আগে চলবে, তারপর পুরনোটা বাতিল-গণনায় ফেলা */
+document.addEventListener('click',e=>{
+  try{
+    const close=e.target.closest('[data-act="apAnnClose"]');
+    if(close){ e.stopPropagation(); e.preventDefault(); apAnnHide(); return; }
+    const b=e.target.closest('[data-act="apAnnGo"]'); if(!b) return;
+    e.stopPropagation(); e.preventDefault();
+    if(b.dataset.kind==='live'){
+      /* সরাসরি দর্শক-স্ট্রিম! (লাইভ-হোম লাফ না দিয়ে!) */
+      apAnnWatchDirect({pid:b.dataset.pid||'', name:'', title:'', ref:b.dataset.ref||''});
+      /* নাম-শিরোনাম ধরতে Firestore থেকে পড়ে শিরোনাম-আপডেট */
+      try{
+        if(apFBReady&&typeof firebase!=='undefined'&&b.dataset.pid){
+          FBDB.collection('alivenow').doc(b.dataset.pid).get().then(d=>{
+            if(d.exists&&apLive&&apLive.id===b.dataset.pid&&apLive.by==='viewer'){
+              const L=d.data();
+              apLive.host=L.host||apLive.host; apLive.title=L.title||apLive.title;
+              const cap=document.querySelector('.lv-cap'); 
+              if(cap) cap.innerHTML='<b>'+esc(apLive.title||'')+'</b> · 👤 '+esc(apLive.host||'');
+            }
+          }).catch(()=>{});
+        }
+      }catch(e){}
+      return;
+    }
+  }catch(err){}
+},true);   /* capture-phase: পুরনো হ্যান্ডলারের আগেই কাজ শেষ! */
+
+/* দর্শক-চ্যাটে লাইভ চলাকালীন গ্লোবাল চ্যাট-সংযোগ (বোনাস!) */
+try{ const o=renderLiveRoom; renderLiveRoom=function(){ o();
+  try{ if(apLive&&apLive.by==='viewer'){
+    const log=document.getElementById('lvChatLog');
+    if(log&&!log.dataset.apG){ log.dataset.apG='1';
+      /* গ্লোবাল চ্যাটের শেষ ২০ বার্তা দেখাও — দর্শক হোস্টের চ্যাটে লিখতে পারবে */
+      apGChatMsgs.slice(-20).forEach(m=>{
+        log.insertAdjacentHTML('beforeend','<div class="bub you"><b>'+esc(m.n||'?')+'</b><span>'+esc(m.t||'')+'</span></div>');
+      });
+      log.scrollTop=1e6;
+    }
+  } }catch(e){}
+}; }catch(e){}
+
+console.log('📣 v5.3 ready — দণ্ডে ক্লিক = সরাসরি লাইভে (দেখা+শোনা এক ক্লিকে!)');
+/* ═══════════ END v5.3 ═══════════ */
