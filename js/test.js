@@ -7956,6 +7956,7 @@ document.addEventListener('click',e=>{
 
 console.log('📞 v4.1 ready — নামে এক ক্লিকে কল (Firebase কলার-রেজিস্ট্রি · কোড মুক্ত!)');
 /* ═══════════ END v4.1 ═══════════ */
+
 /* ═══ v4.3b — লাইভ ডায়াগনস্টিক + সরাসরি ফিক্স ═══ */
 window.startLive=async function(){
   try{
@@ -8029,7 +8030,6 @@ function apAnnounceLiveEnd(L){
 
 /* ---- হোম-ফিডের উপরে লাল ব্যানার ---- */
 var apLiveBanners=window.apLiveBanners||[];
-
 function apLiveBannerShow(L){
   try{
     if(document.getElementById('apLb-'+L.id)) return;
@@ -8207,6 +8207,7 @@ window.addEventListener('pagehide',()=>{ try{ if(apLive) endLive(true); }catch(e
 
 console.log('🧹 v4.5 ready — বাসি-লাইভ পরিষ্কার · 🎤 মাইক-মিটার · হার্টবিট');
 /* ═══════════ END v4.5 ═══════════ */
+
 /* ═══════════ v4.6 — 📼 লাইভ রেকর্ডিং + অটো-ডাউনলোড (শব্দসহ!) ═══════════ */
 var apRec=null, apRecChunks=[];
 function apRecStart(stream){
@@ -8242,6 +8243,7 @@ function apRecStopAndSave(){
   }catch(e){}
 }
 
+
 /* লাইভ শেষ/বাতিলে সেভ */
 try{ const o=endLive; endLive=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
 try{ const o=liveTerminate; liveTerminate=function(){ try{ apRecStopAndSave(); }catch(e){} return o.apply(this,arguments); }; }catch(e){}
@@ -8249,6 +8251,7 @@ try{ const o=liveTerminate; liveTerminate=function(){ try{ apRecStopAndSave(); }
 window.addEventListener('beforeunload',()=>{ try{ if(apRec&&apRec.state==='recording') apRecStopAndSave(); }catch(e){} });
 console.log('📼 v4.6 ready — লাইভ রেকর্ডিং + অটো-ডাউনলোড (শব্দসহ)');
 /* ═══════════ END v4.6 ═══════════ */
+
 /* ═══════════ v4.7 — 📼 লাইভ-রিপ্লে: লাইভ শেষ → অটো-পোস্ট (লাইক·কমেন্ট·শেয়ার-সক্ষম) ═══════════ */
 var apRecBlob=null;
 function apRecSaveBlob(){ try{
@@ -8385,6 +8388,7 @@ apRepairReplays();
 
 console.log('📼 v4.8 ready — রিপ্লে স্থায়ী (IndexedDB) + ☁️ ক্লাউড-আপলোড-প্রস্তুত');
 /* ═══════════ END v4.8 ═══════════ */
+
 /* ═══ v4.9 — ☁️ Storage SDK অটো-লোড + রিপ্লে-ব্যাকফিল (সবার কাছে!) ═══ */
 function apEnsureStorageSDK(){ return new Promise(res=>{
   try{ if(firebase.storage) return res(true);
@@ -8416,6 +8420,7 @@ try{ const o=apFBOn; apFBOn=function(){ o(); setTimeout(()=>{ apCloudBackfill();
 setTimeout(()=>{ if(apFBReady) apCloudBackfill(); },6000);
 console.log('☁️ v4.9 ready — Storage চালু হলেই রিপ্লে স্বয়ংক্রিয় ক্লাউডে!');
 /* ═══ END v4.9 ═══ */
+
 /* ═══════════ v5.0 — 🎧 লাইভ দর্শক-স্ট্রিম (WebRTC · সম্পূর্ণ ফ্রি!) ═══════════ */
 var apBroadPeer=null, apViewerCalls=[], apViewPeer=null;
 
@@ -8547,6 +8552,7 @@ setInterval(()=>{ try{
 
 console.log('🎧 v5.0 ready — লাইভ দর্শক-স্ট্রিম (WebRTC · ফ্রি!)');
 /* ═══════════ END v5.0 ═══════════ */
+
 /* ═══════════ v5.1 — 📣 হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট — সব পাতায় স্থায়ী!) ═══════════ */
 var apAnnBar=null;
 
@@ -8665,7 +8671,8 @@ setTimeout(()=>{ try{ if(apFBReady) apAnnListen(); }catch(e){} },5000);
 
 console.log('📣 v5.1 ready — হেডার-ঘোষণা দণ্ড (লাইভ/পোস্ট · সব পাতায় · গ্লোবাল!)');
 /* ═══════════ END v5.1 ═══════════ */
-/* ═══ v5.2 — কেটে  v5.5  কোড বসানো হয়েছে ) ═══ */
+
+/* v5.2 কেটে দেওয়া হয়েছে  ,আর পরিবর্তে v5.5 bosano hoyeche */
 
 /* ═══ v5.3 — 📣 দণ্ডে ক্লিক = সরাসরি লাইভে ঢোকা (দেখা+শোনা এক ক্লিকে!) ═══ */
 
@@ -8749,6 +8756,7 @@ try{ const o=renderLiveRoom; renderLiveRoom=function(){ o();
 
 console.log('📣 v5.3 ready — দণ্ডে ক্লিক = সরাসরি লাইভে (দেখা+শোনা এক ক্লিকে!)');
 /* ═══════════ END v5.3 ═══════════ */
+
 /* ═══ v5.4 — দর্শক-স্ট্রিম শক্তিশালী: অটো-রিট্রাই · সাউন্ড-আনলক · প্লে-বাটন ═══ */
 var apViewRetry=null;
 
@@ -8839,6 +8847,7 @@ try{
 
 console.log('🎧 v5.4 ready — অটো-রিট্রাই ×৩ · শব্দ-আনলক · প্লে-বাটন');
 /* ═══ END v5.4 ═══ */
+
 /* ═══ v5.5 — সব মৃত blob-ভিডিও পরিষ্কার (রিপ্লে+সাধারণ পোস্ট — সম্পূর্ণ!) ═══ */
 (function(){ try{
   let fixedPosts=0, removedPosts=0;
@@ -8877,6 +8886,7 @@ setInterval(()=>{ try{
 }catch(e){} },15000);
 console.log('🧹 v5.5 ready — সব-মৃত-ব্লব স্ক্যানার সচল');
 /* ═══ END v5.5 ═══ */
+
 /* ═══════════ v5.6 — স্ট্রিম-রোগের মূল ফিক্স + Storage-নীরব ═══════════ */
 
 /* ১) Storage-ব্যাকফিল নীরব (storageBucket নেই = স্কিপ — কার্ড সিদ্ধান্ত সম্মান!) */
@@ -8981,6 +8991,7 @@ try{ apWatchReal=async function(liveId,base,n){
 
 console.log('🎧 v5.6 ready — নির্ধারিত-পথ · ডামি-স্ট্রিম · Storage-নীরব');
 /* ═══════════ END v5.6 ═══════════ */
+
 /* ═══════════ v5.7 — 🎧 লাইভ স্ট্রিম: Firebase-সিগন্যালিং (PeerJS-মুক্ত! · ফ্রি!) ═══════════ */
 try{ const o=apCloudBackfill; apCloudBackfill=async function(){ /* নীরব */ }; }catch(e){}
 
@@ -9249,7 +9260,8 @@ try{ const o=endLive; endLive=function(){
 
 console.log('🎧 v5.8 ready — PeerJS-সম্পূর্ণ-বহিষ্কার · মোবাইল-দণ্ড-ক্লিক-নিশ্চিত · Firebase-সিগন্যাল');
 /* ═══════════ END v5.8 ═══════════ */
-/* ═══════════ v5.9 — দর্শক-ভিডিওর আসল-ফিক্স (হোস্ট-ICE অনুপস্থিত ছিল!) + লাইভ-চ্যাট সিঙ্ক ═══════════ */
+
+    /* ═══════════ v5.9 — দর্শক-ভিডিওর আসল-ফিক্স (হোস্ট-ICE অনুপস্থিত ছিল!) + লাইভ-চ্যাট সিঙ্ক ═══════════ */
 
 /* ---- A) সিগন্যাল-লেখা ব্যর্থ হলে Rules-সমস্যা স্পষ্ট ঘোষণা ---- */
 var apSigErrShown=false;
@@ -9464,4 +9476,3 @@ setInterval(()=>{ try{
 /* ---- ৫) v4.5-এর ৩০-মিনিট পরিষ্কারককে ২-মিনিটে নামানো (বাসি কার্ড দ্রুত মরুক) ---- */
 console.log('🧭 v6.0 ready — নির্ণয়-ব্যাজ · চ্যাট-ছাঁকনি · বাসি-লাইভ-ঘড়ি');
 /* ═══════════ END v6.0 ═══════════ */
-
