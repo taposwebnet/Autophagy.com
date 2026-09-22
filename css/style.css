@@ -725,13 +725,13 @@ body.dark #apDrawer .apd-panel{background:#16162C}
   box-shadow:0 -4px 18px rgba(11,11,22,.35);
 }
 /* টিকারের ভেতরের স্ক্রল-লেখা ঝকঝকে */
-#apNewsBar marquee{font-size:32px !important;color:#fff !important;margin:4px 0 !important}
+#apNewsBar marquee{font-size:24px !important;color:#fff !important;margin:4px 0 !important}
 /* ফুটারের শেষ কনটেন্ট টিকারের আড়ালে না ঢাকে */
-footer{padding-bottom:56px}
+footer{padding-bottom:48px}
 /* মোবাইল: নিচের ট্যাব-বারের উপরে বসবে */
 @media(max-width:1080px){
-  #apNewsBar{bottom:60px}
-  footer{padding-bottom:36px}
+  #apNewsBar{bottom:48px}
+  footer{padding-bottom:30px}
 }
 /* ═══ END v4.3 ═══ */
 
