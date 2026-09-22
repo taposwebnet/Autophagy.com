@@ -9378,3 +9378,89 @@ try{ const o=endLive; endLive=function(){ try{ apLiveChatOff(); }catch(e){} retu
 
 console.log('🎧 v5.9 ready — হোস্ট-ICE ফিক্স (আসল-বাগ!) · লাইভ-চ্যাট হোস্ট↦দর্শক সিঙ্ক');
 /* ═══════════ END v5.9 ═══════════ */
+/* ═══════════ v6.0 — নির্ণয়-ব্যাজ + চ্যাট-ছাঁকনি + বাসি-লাইভ-ঘড়ি ═══════════ */
+
+/* ---- ১) ভার্সন-ব্যাজ (কোন ডিভাইসে কোন কোড — চোখে দেখা যাবে!) ---- */
+(function(){ try{
+  const b=document.createElement('div');
+  b.style.cssText='position:fixed;top:2px;inset-inline-start:50%;transform:translateX(-50%);z-index:9999;background:#0B6E4F;color:#fff;font-family:var(--mono);font-size:9.5px;padding:2px 10px;border-radius:0 0 8px 8px;letter-spacing:.1em';
+  b.textContent='CODE v6.0';
+  document.body.appendChild(b);
+}catch(e){} })();
+
+/* ---- ২) Firebase-যাচাই: কোন গুদামে যুক্ত — Console-এ স্পষ্ট! ---- */
+try{
+  const o=apFBOn; apFBOn=function(){ o();
+  try{
+    const pid=(typeof FB_CONFIG!=='undefined')?FB_CONFIG.projectId:'?';
+    console.log('%c🔎 CONNECTED Firebase project: '+pid,'background:#0000AD;color:#fff;padding:2px 8px');
+    if(pid&&pid.indexOf('e8317')<0){
+      console.warn('⚠️ এটা পুরনো প্রজেক্ট! নতুন (e8317) কী বসাও — নইলে লাইভ-সিগন্যাল দেয়ালে বাধা!');
+      toast('⚠️ পুরনো Firebase চলছে — ক্যাশ-ক্লিয়ার + নতুন কী দরকার!','alert');
+    }
+  }catch(e){}
+}; }catch(e){}
+
+/* ---- ৩) চ্যাট-ছাঁকনি: প্রতি লাইভ-রুমে শুধু নিজের চ্যাট! ---- */
+try{ apLiveChatOn=function(){
+  try{
+    apLiveChatOff();
+    if(!apFBReady||typeof firebase==='undefined'||!apLive) return;
+    const myLive=apLive.id;
+    apLiveChatUnsub=FBDB.collection('achat').orderBy('ts','desc').limit(60).onSnapshot(s=>{
+      try{
+        const log=document.getElementById('lvChatLog'); if(!log) return;
+        const u=me();
+        /* ⭐ ছাঁকনি: শুধু এই লাইভের বার্তা! (msg.live === এই লাইভের id) */
+        const msgs=s.docs.map(d=>Object.assign({id:d.id},d.data()))
+          .filter(m=>(m.live||'')===myLive).reverse();
+        log.innerHTML='';
+        msgs.forEach(m=>{
+          const mine=u&&!m.a&&m.n===u.name;
+          log.insertAdjacentHTML('beforeend','<div class="bub '+(mine?'me':'you')+'"><b>'+esc(m.n||'?')+'</b><span>'+esc(m.t||'')+'</span></div>');
+        });
+        log.scrollTop=1e6;
+      }catch(e){}
+    },()=>{});
+  }catch(e){}
+}; }catch(e){}
+
+/* লাইভ-চ্যাট-পাঠানো: বার্তার সাথে লাইভ-পরিচয় স্ট্যাম্প! */
+try{ liveChatSend=function(){
+  try{
+    const inp=document.getElementById('lvChatIn'); if(!inp) return;
+    const v=(inp.value||'').trim(); if(!v) return; inp.value='';
+    if(!me()) return openAuth('login');
+    if((typeof BAD_RE!=='undefined'&&BAD_RE.test(v))||(typeof linkBad==='function'&&linkBad(v))){ toast('⛔ নিষিদ্ধ বক্তব্য','alert'); return; }
+    const u=me();
+    if(apFBReady&&typeof firebase!=='undefined'){
+      /* ⭐ নতুন ক্ষেত্র: live = কোন লাইভের চ্যাট */
+      FBDB.collection('achat').add({n:u.defAnon?'Anonymous':u.name,ct:u.ct||'',a:!!u.defAnon,t:v,ts:Date.now(),live:(apLive&&apLive.id)||''}).catch(()=>{});
+    } else {
+      const log=document.getElementById('lvChatLog');
+      if(log){ log.insertAdjacentHTML('beforeend','<div class="bub me"><b>'+esc(u.name)+'</b><span>'+esc(v)+'</span></div>'); log.scrollTop=1e6; }
+    }
+  }catch(e){}
+}; }catch(e){}
+
+/* ---- ৪) বাসি-লাইভ-ঘড়ি: হোস্ট-বন্ধ হলে ৬০ সেকেন্ডেই দর্শকের লাইভও শেষ! ---- */
+setInterval(()=>{ try{
+  /* দর্শক-পাশ: লাইভ কি এখনো প্রচারে আছে? */
+  if(apLive&&apLive.by==='viewer'&&apFBReady&&typeof firebase!=='undefined'){
+    FBDB.collection('alivenow').doc(apLive.id).get().then(d=>{
+      if(!d.exists){ toast('📵 লাইভটা শেষ হয়ে গেছে','phone');
+        apFbClean(); apLive=null; try{renderLiveHome();}catch(e){} }
+      else{
+        const L=d.data()||{};
+        if(Date.now()-(L.ts||0)>90000){  /* ৯০ সেকেন্ড হার্টবিট-না = মৃত */
+          toast('📵 হোস্টের সংযোগ শেষ — লাইভ সমাপ্ত','phone');
+          apFbClean(); apLive=null; try{renderLiveHome();}catch(e){}
+        }
+      }
+    }).catch(()=>{});
+  }
+}catch(e){} },30000);
+
+/* ---- ৫) v4.5-এর ৩০-মিনিট পরিষ্কারককে ২-মিনিটে নামানো (বাসি কার্ড দ্রুত মরুক) ---- */
+console.log('🧭 v6.0 ready — নির্ণয়-ব্যাজ · চ্যাট-ছাঁকনি · বাসি-লাইভ-ঘড়ি');
+/* ═══════════ END v6.0 ═══════════ */
