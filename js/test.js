@@ -9464,85 +9464,13 @@ setInterval(()=>{ try{
 /* ---- ৫) v4.5-এর ৩০-মিনিট পরিষ্কারককে ২-মিনিটে নামানো (বাসি কার্ড দ্রুত মরুক) ---- */
 console.log('🧭 v6.0 ready — নির্ণয়-ব্যাজ · চ্যাট-ছাঁকনি · বাসি-লাইভ-ঘড়ি');
 /* ═══════════ END v6.0 ═══════════ */
-/* ═══ v6.1 — 🌉 TURN-টানেল (CGNAT ভেদ — মোবাইল-হোস্ট ফিক্স!) ═══ */
+/* ═══ v6.1-lite — শুধু STUN (TURN-পরে যোগ হবে) ═══ */
 window.AP_ICE=[
-  {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']},
-  /* ⬇️⬇️ metered.ca Dashboard থেকে নিজের Username+Credential বসাও ⬇️⬇️ */
-  {urls:['turn:standard.relay.metered.ca:80',
-         'turn:standard.relay.metered.ca:443',
-         'turns:standard.relay.metered.ca:443?transport=tcp'],
-   username:'এখানে_USERNAME',credential:'এখানে_CREDENTIAL'}
+  {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}
 ];
-try{ if(window.AP_ICE[1].username.indexOf('এখানে')>=0) console.warn('⚠️ v6.1 — TURN-তথ্য এখনো বসানো হয়নি!'); }catch(e){}
+console.log('✅ v6.1-lite ready — শুধু STUN (নিরাপদ বেস)');
+/* ═══ END v6.1-lite ═══ */
 
-/* হোস্ট (AP_ICE সহ) */
-try{ apBroadStart=async function(stream){
-  try{
-    if(!apLive||!stream||!window.RTCPeerConnection) return;
-    if(apRTCPc){ try{apRTCPc.close();}catch(e){} }
-    const pc=new RTCPeerConnection({iceServers:window.AP_ICE}); apRTCPc=pc;
-    stream.getTracks().forEach(t=>{ try{ pc.addTrack(t,stream); }catch(e){} });
-    const hc=[];
-    pc.onicecandidate=e=>{ if(e.candidate){ hc.push(e.candidate.toJSON()); try{apRtcLogSet({hCands:hc.slice()});}catch(e){} } };
-    apRtcLogSet({hostOn:true,ts:Date.now()});
-    const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-    apRtcLogSet({offer:{type:offer.type,sdp:offer.sdp}});
-    apRtcListen(apLive.id,async d=>{
-      try{ if(d&&d.answer&&!pc.remoteDescription){ await pc.setRemoteDescription(new RTCSessionDescription(d.answer)); }
-        if(d&&d.vCands&&d.vCands.length){ d.vCands.forEach(c=>{ try{ pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} }); }
-      }catch(e){} });
-    pc.onconnectionstatechange=()=>{ try{
-      if(pc.connectionState==='connected'&&apLive){ apLive.viewers=(apLive.viewers||0)+1;
-        const v=document.getElementById('lvViews'); if(v) v.textContent='👁 '+fmt(apLive.viewers);
-        toast('📺 একজন দর্শক সংযুক্ত!','users'); }
-    }catch(e){} };
-    toast('📡 সম্প্রচার-পথ খোলা (TURN-সহ) — দর্শক এসো!','globe');
-  }catch(e){ console.warn('broad61',e); }
-}; }catch(e){}
-
-/* দর্শক (AP_ICE সহ) */
-try{ apWatchRealFb=function(liveId){
-  try{
-    apFbClean(); let tries=0;
-    const tryConn=async()=>{
-      try{
-        if(!apLive||apLive.by!=='viewer') return;
-        let sig=null,readOk=true;
-        try{ if(apFBReady&&typeof firebase!=='undefined'){ const d=await FBDB.collection('aliveSignals').doc(liveId).get(); if(d.exists) sig=d.data(); } }catch(e){ readOk=false; }
-        if(!readOk){ const st=document.getElementById('apVSt'); if(st) st.textContent='🚨 Rules-দরজা দরকার (aliveSignals)!'; return; }
-        if(!sig||!sig.offer||!sig.hostOn){ tries++;
-          const st=document.getElementById('apVSt'); if(st&&tries<12) st.textContent='📡 হোস্টের পথ খুলছে… ('+tries+'/১২)';
-          if(tries>=12){ toast('📵 হোস্টের offer নেই','alert'); return; }
-          setTimeout(tryConn,2500); return; }
-        if(apFbPc){ try{apFbPc.close();}catch(e){} }
-        const pc=new RTCPeerConnection({iceServers:window.AP_ICE}); apFbPc=pc;
-        try{ pc.addTransceiver('video',{direction:'recvonly'}); pc.addTransceiver('audio',{direction:'recvonly'}); }catch(e){}
-        const vc=[];
-        pc.onicecandidate=e=>{ if(e.candidate){ vc.push(e.candidate.toJSON());
-          try{ if(apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aliveSignals').doc(liveId).set({vCands:vc.slice()},{merge:true}).catch(()=>{}); } }catch(e){} } };
-        pc.ontrack=e=>{ try{ const remote=e.streams&&e.streams[0];
-          const v=document.getElementById('lvVid');
-          if(v&&remote){ v.srcObject=remote; v.muted=false; v.volume=1;
-            v.play().then(()=>{ toast('🔴 সংযুক্ত! দেখছো ও শুনছো 🎧','globe');
-              const st=document.getElementById('apVSt'); if(st) st.style.display='none';
-            }).catch(()=>{ toast('🔊 শব্দ-চালু করতে ভিডিওতে চাপ দাও','vid'); });
-            v.onclick=()=>{ try{ v.muted=false; v.play(); }catch(e){} }; }
-        }catch(e){} };
-        await pc.setRemoteDescription(new RTCSessionDescription(sig.offer));
-        (sig.hCands||[]).forEach(c=>{ try{ pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} });
-        try{ if(apFBReady&&typeof firebase!=='undefined'){
-          apFbUnsub=FBDB.collection('aliveSignals').doc(liveId).onSnapshot(s=>{ try{ const d=s.data(); if(!d) return;
-            (d.hCands||[]).forEach(c=>{ try{ pc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){} }); }catch(e){} }); } }catch(e){}
-        const ans=await pc.createAnswer(); await pc.setLocalDescription(ans);
-        if(apFBReady&&typeof firebase!=='undefined'){ FBDB.collection('aliveSignals').doc(liveId).set({answer:{type:ans.type,sdp:ans.sdp},vCands:vc.slice()},{merge:true}).catch(()=>{}); }
-      }catch(e){ console.warn('w61',e); }
-    };
-    tryConn();
-  }catch(e){}
-}; }catch(e){}
-
-console.log('🌉 v6.1 ready — TURN-টানেল সজ্জিত (তথ্য বসালেই CGNAT ভেদ!)');
-/* ═══ END v6.1 ═══ */
 /* ═══ v6.2 — apBroadStart-ডিডুপ (আসল বাগ!) · দর্শক-প্লে-ওভারলে · ICE-রিট্রাই ═══ */
 var apBroadGuard={id:null,ts:0};
 
