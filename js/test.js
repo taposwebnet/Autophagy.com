@@ -9647,3 +9647,46 @@ try{
 
 console.log('🌉 v6.3c ready — সরল-নির্ভরযোগ্য TURN!');
 /* ═══════════ END v6.3c ═══════════ */
+
+/* ═══════════ v6.4 — হোস্ট-সম্প্রচার সরাসরি-ট্রিগার (চেইন-মুক্ত!) + দৃশ্যমান-স্ট্যাটাস ═══════════ */
+try{
+  var __oR=renderLiveRoom;
+  renderLiveRoom=function(){
+    __oR();
+    try{
+      if(apLive&&apLive.by==='me'&&apLive.stream){
+        if(window.apBroadFired!==apLive.id){
+          window.apBroadFired=apLive.id;
+          setTimeout(function(){
+            try{
+              apBroadStart(apLive.stream);
+              setTimeout(function(){
+                try{
+                  if(!(apFBReady&&typeof firebase!=='undefined'&&apLive)) return;
+                  FBDB.collection('aliveSignals').doc(apLive.id).get().then(function(d){
+                    try{
+                      var w=document.querySelector('.live-hero'); if(!w) return;
+                      if(document.getElementById('apOfferOk')) return;
+                      if(d.exists){
+                        w.insertAdjacentHTML('afterbegin','<div id="apOfferOk" style="background:#0B6E4F;color:#fff;padding:9px 12px;border-radius:8px;font-size:12.5px;font-weight:600;margin-bottom:10px">✅ সিগন্যাল প্রকাশিত (offer ✓) — দর্শকের অপেক্ষায়…</div>');
+                      } else {
+                        w.insertAdjacentHTML('afterbegin','<div id="apOfferOk" style="background:#C0195B;color:#fff;padding:9px 12px;border-radius:8px;font-size:12.5px;font-weight:600;margin-bottom:10px">🚨 সিগন্যাল প্রকাশ ব্যর্থ — এই লেখাটা দেখলে আমাকে জানাও!</div>');
+                      }
+                    }catch(e){}
+                  }).catch(function(){});
+                }catch(e){}
+              },2500);
+            }catch(e){ console.warn('direct64',e); }
+          },900);
+        }
+      }
+    }catch(e){}
+  };
+}catch(e){}
+
+/* লাইভ শেষে ট্রিগার-রিসেট */
+try{ var __oE=endLive; endLive=function(){ try{ window.apBroadFired=null; }catch(e){} return __oE.apply(this,arguments); }; }catch(e){}
+try{ var __oT=liveTerminate; liveTerminate=function(){ try{ window.apBroadFired=null; }catch(e){} return __oT.apply(this,arguments); }; }catch(e){}
+
+console.log('🚀 v6.4 ready — হোস্ট-সম্প্রচার সরাসরি-ট্রিগার (চেইন-মুক্ত!)');
+/* ═══════════ END v6.4 ═══════════ */
